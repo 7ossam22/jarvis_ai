@@ -8,7 +8,6 @@ Future<void> initializeBackgroundService() async {
       onStart: onStart,
       autoStart: true,
       isForegroundMode: true,
-      notificationChannelId: 'jarvis_channel',
       initialNotificationTitle: 'J.A.R.V.I.S',
       initialNotificationContent: 'Standing by, sir.',
       foregroundServiceNotificationId: 888,

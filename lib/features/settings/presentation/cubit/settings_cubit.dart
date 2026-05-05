@@ -1,5 +1,6 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../../../../core/env/env.dart';
 import 'settings_state.dart';
 
 class SettingsCubit extends Cubit<SettingsState> {
@@ -10,8 +11,8 @@ class SettingsCubit extends Cubit<SettingsState> {
   Future<void> _load() async {
     final p = await SharedPreferences.getInstance();
     emit(SettingsState(
-      n8nBaseUrl: p.getString('n8n_base_url') ?? 'https://unimmerged-ching-personably.ngrok-free.dev',
-      webhookPath: p.getString('n8n_webhook_path') ?? '/webhook/jarvis',
+      n8nBaseUrl: p.getString('n8n_base_url') ?? Env.n8nBaseUrl,
+      webhookPath: p.getString('n8n_webhook_path') ?? Env.n8nWebHookUrl,
       apiKey: p.getString('n8n_api_key') ?? '',
       speechRate: p.getDouble('tts_speech_rate') ?? 0.48,
       pitch: p.getDouble('tts_pitch') ?? 0.85,

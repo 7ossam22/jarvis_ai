@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:logger/logger.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../env/env.dart';
 
 class DioClient {
   late Dio _dio;
@@ -12,9 +13,8 @@ class DioClient {
 
   Future<Dio> get client async {
     final prefs = await SharedPreferences.getInstance();
-    final baseUrl = prefs.getString('n8n_base_url') ??
-        'https://unimmerged-ching-personably.ngrok-free.dev';
-    final apiKey = prefs.getString('n8n_api_key') ?? '';
+    final baseUrl = Env.n8nBaseUrl;
+    final apiKey = '';
     final isNgrok = baseUrl.contains('ngrok');
 
     _dio.options = BaseOptions(
@@ -24,7 +24,6 @@ class DioClient {
       headers: {
         'Content-Type': 'application/json',
         if (apiKey.isNotEmpty) 'X-N8N-API-KEY': apiKey,
-        // Bypass the ngrok browser-warning interstitial page
         if (isNgrok) 'ngrok-skip-browser-warning': 'true',
       },
     );

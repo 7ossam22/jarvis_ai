@@ -1,11 +1,11 @@
 import 'dart:async';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../../../core/constants/app_strings.dart';
-import '../../../services/speech_service.dart';
-import '../../../services/tts_service.dart';
-import '../data/jarvis_response.dart';
-import '../data/n8n_repository.dart';
+import '../../../../core/constants/app_strings.dart';
+import '../../../../services/speech_service.dart';
+import '../../../../services/tts_service.dart';
+import '../../data/jarvis_response.dart';
+import '../../data/n8n_repository.dart';
 import 'jarvis_state.dart';
 
 class JarvisCubit extends Cubit<JarvisState> {

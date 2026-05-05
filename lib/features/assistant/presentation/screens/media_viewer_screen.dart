@@ -6,9 +6,9 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:video_player/video_player.dart';
-import '../../../core/constants/app_colors.dart';
-import '../../../services/media_download_service.dart';
-import '../data/jarvis_response.dart';
+import '../../../../core/constants/app_colors.dart';
+import '../../../../services/media_download_service.dart';
+import '../../data/jarvis_response.dart';
 
 class MediaViewerScreen extends StatefulWidget {
   final JarvisResponse response;

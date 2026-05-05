@@ -1,5 +1,5 @@
 import 'package:equatable/equatable.dart';
-import '../data/jarvis_response.dart';
+import '../../data/jarvis_response.dart';
 
 enum JarvisStatus { idle, listening, processing, speaking, error }
 

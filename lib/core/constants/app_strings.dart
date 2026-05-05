@@ -23,6 +23,6 @@ class AppStrings {
       'Cannot reach the command center, sir. Check your n8n connection.';
   static const settingsTitle = 'System Configuration';
   static const n8nUrlHint = 'n8n Base URL (e.g. http://192.168.1.100:5678)';
-  static const webhookPathHint = 'Webhook Path (e.g. /webhook/jarvis)';
+  static const webhookPathHint = 'Webhook Path';
   static const apiKeyHint = 'API Key (optional)';
 }

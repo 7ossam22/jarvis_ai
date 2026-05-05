@@ -2,18 +2,18 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../../../core/constants/app_colors.dart';
-import '../../../core/constants/app_strings.dart';
+import '../../../../core/constants/app_colors.dart';
+import '../../../../core/constants/app_strings.dart';
 import '../cubit/jarvis_cubit.dart';
 import '../cubit/jarvis_state.dart';
-import '../data/jarvis_response.dart';
+import '../../data/jarvis_response.dart';
 import 'media_viewer_screen.dart';
-import 'widgets/arc_reactor_widget.dart';
-import 'widgets/hud_overlay_painter.dart';
-import 'widgets/response_popup.dart';
-import 'widgets/status_card.dart';
-import 'widgets/waveform_widget.dart';
-import '../../settings/presentation/settings_screen.dart';
+import '../widgets/arc_reactor_widget.dart';
+import '../widgets/hud_overlay_painter.dart';
+import '../widgets/response_popup.dart';
+import '../widgets/status_card.dart';
+import '../widgets/waveform_widget.dart';
+import '../../../settings/presentation/screens/settings_screen.dart';
 
 class JarvisScreen extends StatefulWidget {
   const JarvisScreen({super.key});

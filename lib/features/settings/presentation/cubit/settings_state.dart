@@ -1,4 +1,5 @@
 import 'package:equatable/equatable.dart';
+import '../../../../core/env/env.dart';
 
 class SettingsState extends Equatable {
   // n8n connection
@@ -23,8 +24,8 @@ class SettingsState extends Equatable {
   final bool saved;
 
   const SettingsState({
-    this.n8nBaseUrl = 'https://unimmerged-ching-personably.ngrok-free.dev',
-    this.webhookPath = '/webhook/jarvis',
+    this.n8nBaseUrl = Env.n8nBaseUrl,
+    this.webhookPath = Env.n8nWebHookUrl,
     this.apiKey = '',
     this.speechRate = 0.48,
     this.pitch = 0.85,
