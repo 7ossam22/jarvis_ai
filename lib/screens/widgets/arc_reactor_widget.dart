@@ -1,7 +1,7 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
-import '../../../../core/constants/app_colors.dart';
-import '../cubit/jarvis_state.dart';
+import '../../core/constants/app_colors.dart';
+import '../../cubits/jarvis_state.dart';
 
 class ArcReactorWidget extends StatefulWidget {
   final JarvisStatus status;

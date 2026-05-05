@@ -2,18 +2,18 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../../../../core/constants/app_colors.dart';
-import '../../../../core/constants/app_strings.dart';
-import '../cubit/jarvis_cubit.dart';
-import '../cubit/jarvis_state.dart';
-import '../../data/jarvis_response.dart';
+import '../core/constants/app_colors.dart';
+import '../core/constants/app_strings.dart';
+import '../cubits/jarvis_cubit.dart';
+import '../cubits/jarvis_state.dart';
+import '../logic/jarvis_response.dart';
 import 'media_viewer_screen.dart';
-import '../widgets/arc_reactor_widget.dart';
-import '../widgets/hud_overlay_painter.dart';
-import '../widgets/response_popup.dart';
-import '../widgets/status_card.dart';
-import '../widgets/waveform_widget.dart';
-import '../../../settings/presentation/screens/settings_screen.dart';
+import 'widgets/arc_reactor_widget.dart';
+import 'widgets/hud_overlay_painter.dart';
+import 'widgets/response_popup.dart';
+import 'widgets/status_card.dart';
+import 'widgets/waveform_widget.dart';
+import 'settings_screen.dart';
 
 class JarvisScreen extends StatefulWidget {
   const JarvisScreen({super.key});
@@ -85,29 +85,42 @@ class _JarvisScreenState extends State<JarvisScreen>
               ),
 
               SafeArea(
-                child: Column(
-                  children: [
-                    _buildTopBar(context, state),
-                    const Spacer(),
-                    _buildReactor(context, state),
-                    const SizedBox(height: 16),
-                    WaveformWidget(
-                      active: state.status == JarvisStatus.listening ||
-                          state.status == JarvisStatus.speaking,
-                      soundLevel: state.soundLevel,
-                      color: state.status == JarvisStatus.listening
-                          ? AppColors.ironGold
-                          : AppColors.arcReactorCyan,
-                    ),
-                    const SizedBox(height: 24),
-                    StatusCard(state: state)
-                        .animate()
-                        .fadeIn(duration: 300.ms)
-                        .slideY(begin: 0.1, end: 0),
-                    const Spacer(),
-                    _buildTextInput(context, state),
-                    const SizedBox(height: 16),
-                  ],
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    return SingleChildScrollView(
+                      child: ConstrainedBox(
+                        constraints:
+                            BoxConstraints(minHeight: constraints.maxHeight),
+                        child: IntrinsicHeight(
+                          child: Column(
+                            children: [
+                              _buildTopBar(context, state),
+                              const Spacer(),
+                              _buildReactor(context, state),
+                              const SizedBox(height: 16),
+                              WaveformWidget(
+                                active:
+                                    state.status == JarvisStatus.listening ||
+                                        state.status == JarvisStatus.speaking,
+                                soundLevel: state.soundLevel,
+                                color: state.status == JarvisStatus.listening
+                                    ? AppColors.ironGold
+                                    : AppColors.arcReactorCyan,
+                              ),
+                              const SizedBox(height: 24),
+                              StatusCard(state: state)
+                                  .animate()
+                                  .fadeIn(duration: 300.ms)
+                                  .slideY(begin: 0.1, end: 0),
+                              const Spacer(),
+                              _buildTextInput(context, state),
+                              const SizedBox(height: 16),
+                            ],
+                          ),
+                        ),
+                      ),
+                    );
+                  },
                 ),
               ),
             ],
@@ -122,36 +135,40 @@ class _JarvisScreenState extends State<JarvisScreen>
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
       child: Row(
         children: [
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                AppStrings.appName,
-                style: GoogleFonts.rajdhani(
-                  color: AppColors.arcReactorCyan,
-                  fontSize: 28,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 8,
-                ),
-              )
-                  .animate()
-                  .fadeIn(duration: 800.ms)
-                  .shimmer(
-                    duration: 3000.ms,
-                    color: AppColors.arcReactorGlow,
-                    delay: 1000.ms,
+          Flexible(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  AppStrings.appName,
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.rajdhani(
+                    color: AppColors.arcReactorCyan,
+                    fontSize: 28,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 8,
                   ),
-              Text(
-                AppStrings.appSubtitle.toUpperCase(),
-                style: GoogleFonts.rajdhani(
-                  color: AppColors.textDim,
-                  fontSize: 9,
-                  letterSpacing: 2.5,
+                )
+                    .animate()
+                    .fadeIn(duration: 800.ms)
+                    .shimmer(
+                      duration: 3000.ms,
+                      color: AppColors.arcReactorGlow,
+                      delay: 1000.ms,
+                    ),
+                Text(
+                  AppStrings.appSubtitle.toUpperCase(),
+                  overflow: TextOverflow.ellipsis,
+                  style: GoogleFonts.rajdhani(
+                    color: AppColors.textDim,
+                    fontSize: 9,
+                    letterSpacing: 2.5,
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-          const Spacer(),
+          const SizedBox(width: 8),
           // System status indicators
           _SystemIndicator(active: state.backgroundActive, label: 'BG'),
           const SizedBox(width: 8),

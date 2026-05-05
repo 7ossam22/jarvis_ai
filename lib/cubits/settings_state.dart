@@ -1,5 +1,5 @@
 import 'package:equatable/equatable.dart';
-import '../../../../core/env/env.dart';
+import '../core/env/env.dart';
 
 class SettingsState extends Equatable {
   // n8n connection

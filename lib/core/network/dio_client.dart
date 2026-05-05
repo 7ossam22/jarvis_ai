@@ -13,8 +13,8 @@ class DioClient {
 
   Future<Dio> get client async {
     final prefs = await SharedPreferences.getInstance();
-    final baseUrl = Env.n8nBaseUrl;
-    final apiKey = '';
+    final baseUrl = prefs.getString('n8n_base_url') ?? Env.n8nBaseUrl;
+    final apiKey = prefs.getString('n8n_api_key') ?? '';
     final isNgrok = baseUrl.contains('ngrok');
 
     _dio.options = BaseOptions(
@@ -42,7 +42,8 @@ class _JarvisInterceptor extends Interceptor {
 
   @override
   void onResponse(Response response, ResponseInterceptorHandler handler) {
-    _logger.d('[JARVIS] ← ${response.statusCode} ${response.requestOptions.path}');
+    _logger
+        .d('[JARVIS] ← ${response.statusCode} ${response.requestOptions.path}');
     handler.next(response);
   }
 

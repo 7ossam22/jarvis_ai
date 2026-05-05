@@ -1,7 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:jarvis_ai/core/env/env.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../../../core/network/dio_client.dart';
+import '../core/network/dio_client.dart';
 import 'jarvis_response.dart';
 
 class N8nRepository {
@@ -11,7 +11,6 @@ class N8nRepository {
 
   Future<JarvisResponse> sendCommand(String command) async {
     try {
-      final prefs = await SharedPreferences.getInstance();
       final webhookPath = Env.n8nWebHookUrl;
       final dio = await _dioClient.client;
 

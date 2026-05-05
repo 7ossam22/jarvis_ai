@@ -1,6 +1,6 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../../../../core/env/env.dart';
+import '../core/env/env.dart';
 import 'settings_state.dart';
 
 class SettingsCubit extends Cubit<SettingsState> {
@@ -21,10 +21,8 @@ class SettingsCubit extends Cubit<SettingsState> {
       processingMessageIntervalSecs:
           p.getInt('behavior_processing_interval') ?? 8,
       pollingIntervalSecs: p.getInt('behavior_polling_interval') ?? 5,
-      autoListenAfterResponse:
-          p.getBool('behavior_auto_listen') ?? false,
-      speakProcessingMessages:
-          p.getBool('behavior_speak_processing') ?? true,
+      autoListenAfterResponse: p.getBool('behavior_auto_listen') ?? false,
+      speakProcessingMessages: p.getBool('behavior_speak_processing') ?? true,
       wakeWord: p.getString('behavior_wake_word') ?? 'jarvis',
     ));
   }
@@ -64,8 +62,7 @@ class SettingsCubit extends Cubit<SettingsState> {
         'behavior_processing_interval', state.processingMessageIntervalSecs);
     await p.setInt('behavior_polling_interval', state.pollingIntervalSecs);
     await p.setBool('behavior_auto_listen', state.autoListenAfterResponse);
-    await p.setBool(
-        'behavior_speak_processing', state.speakProcessingMessages);
+    await p.setBool('behavior_speak_processing', state.speakProcessingMessages);
     await p.setString('behavior_wake_word', wakeWord.trim().toLowerCase());
 
     emit(state.copyWith(

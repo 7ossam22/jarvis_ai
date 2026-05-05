@@ -4,8 +4,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'core/di/service_locator.dart';
 import 'core/theme/app_theme.dart';
-import 'features/assistant/presentation/cubit/jarvis_cubit.dart';
-import 'features/assistant/presentation/screens/jarvis_screen.dart';
+import 'cubits/jarvis_cubit.dart';
+import 'screens/jarvis_screen.dart';
 import 'services/background_service.dart';
 
 void main() async {

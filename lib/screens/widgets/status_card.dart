@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../../../../core/constants/app_colors.dart';
-import '../cubit/jarvis_state.dart';
+import '../../core/constants/app_colors.dart';
+import '../../cubits/jarvis_state.dart';
 
 class StatusCard extends StatelessWidget {
   final JarvisState state;
