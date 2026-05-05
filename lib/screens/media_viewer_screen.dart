@@ -9,6 +9,7 @@ import 'package:video_player/video_player.dart';
 import '../core/constants/app_colors.dart';
 import '../services/media_download_service.dart';
 import '../logic/jarvis_response.dart';
+import '../utils/animations/animated_scale_icon.dart';
 
 class MediaViewerScreen extends StatefulWidget {
   final JarvisResponse response;
@@ -26,8 +27,8 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
 
   bool _saving = false;
   String? _saveMessage;
+  bool _saveSuccess = false;
 
-  // Temp file path used when playing video from bytes
   String? _tmpVideoPath;
 
   bool get _isVideo => widget.response.type == JarvisResponseType.video;
@@ -42,7 +43,6 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
     VideoPlayerController controller;
 
     if (widget.response.hasBytes) {
-      // Write bytes to a temp file so VideoPlayerController can read it
       final dir = await getTemporaryDirectory();
       _tmpVideoPath =
           '${dir.path}/jarvis_preview_${DateTime.now().millisecondsSinceEpoch}.${widget.response.fileExtension}';
@@ -78,15 +78,19 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
   void dispose() {
     _chewieController?.dispose();
     _videoController?.dispose();
-    // Clean up temp video file
     if (_tmpVideoPath != null) {
-      try { File(_tmpVideoPath!).deleteSync(); } catch (_) {}
+      try {
+        File(_tmpVideoPath!).deleteSync();
+      } catch (_) {}
     }
     super.dispose();
   }
 
   Future<void> _save() async {
-    setState(() { _saving = true; _saveMessage = null; });
+    setState(() {
+      _saving = true;
+      _saveMessage = null;
+    });
 
     String? error;
     final r = widget.response;
@@ -106,11 +110,16 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
     if (!mounted) return;
     setState(() {
       _saving = false;
+      _saveSuccess = error == null;
       _saveMessage = error ??
-          (_isVideo ? 'Video saved to gallery, sir.' : 'Image saved to gallery, sir.');
+          (_isVideo
+              ? 'Video saved to gallery, sir.'
+              : 'Image saved to gallery, sir.');
     });
     Future.delayed(const Duration(seconds: 3),
-        () { if (mounted) setState(() => _saveMessage = null); });
+        () {
+      if (mounted) setState(() => _saveMessage = null);
+    });
   }
 
   // ── Build ─────────────────────────────────────────────────────────────────
@@ -121,12 +130,21 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
       backgroundColor: Colors.black,
       body: Stack(
         children: [
+          // Subtle corner decoration lines
+          _buildCornerDecorations(),
           Center(child: _buildMedia()),
           _buildTopBar(),
           if (widget.response.spokenMessage != null) _buildCaption(),
           if (_saveMessage != null) _buildToast(),
         ],
       ),
+    );
+  }
+
+  Widget _buildCornerDecorations() {
+    return CustomPaint(
+      painter: _CornerDecorPainter(color: AppColors.arcReactorCyan),
+      size: MediaQuery.of(context).size,
     );
   }
 
@@ -139,29 +157,69 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
             _hudButton(
               icon: Icons.arrow_back_ios_rounded,
               onTap: () => Navigator.pop(context),
-            ),
+            ).animate().fadeIn(duration: 300.ms).slideX(begin: -0.3, end: 0),
             const Spacer(),
-            Text(
-              _isVideo ? 'VIDEO OUTPUT' : 'IMAGE OUTPUT',
-              style: GoogleFonts.rajdhani(
-                color: AppColors.arcReactorCyan,
-                fontSize: 13,
-                letterSpacing: 4,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
+            Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  _isVideo ? 'VIDEO OUTPUT' : 'IMAGE OUTPUT',
+                  style: GoogleFonts.rajdhani(
+                    color: AppColors.arcReactorCyan,
+                    fontSize: 13,
+                    letterSpacing: 4,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                Container(
+                  height: 1,
+                  width: 80,
+                  margin: const EdgeInsets.only(top: 2),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(colors: [
+                      Colors.transparent,
+                      AppColors.arcReactorCyan.withValues(alpha: 0.7),
+                      Colors.transparent,
+                    ]),
+                  ),
+                ),
+              ],
+            ).animate().fadeIn(duration: 500.ms).slideY(begin: -0.3, end: 0),
             const Spacer(),
-            _hudButton(
-              icon: _saving
-                  ? Icons.hourglass_bottom_rounded
-                  : Icons.download_rounded,
+            GestureDetector(
               onTap: _saving ? null : _save,
-              glow: true,
-            ),
+              child: Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: AppColors.cardSurface,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: AppColors.arcReactorCyan.withValues(alpha: 0.5),
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppColors.arcReactorCyan.withValues(alpha: 0.25),
+                      blurRadius: 12,
+                    ),
+                  ],
+                ),
+                child: Center(
+                  child: AnimatedScaleIcon(
+                    isToggled: _saving,
+                    activeIcon: Icons.hourglass_bottom_rounded,
+                    inactiveIcon: Icons.download_rounded,
+                    activeColor: AppColors.ironGold,
+                    inactiveColor: AppColors.arcReactorCyan,
+                    size: 18,
+                  ),
+                ),
+              ),
+            ).animate().fadeIn(duration: 300.ms).slideX(begin: 0.3, end: 0),
           ],
         ),
       ),
-    ).animate().fadeIn(duration: 400.ms);
+    );
   }
 
   Widget _buildMedia() {
@@ -171,31 +229,66 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
 
     if (_isVideo) {
       if (_chewieController == null) {
-        return const CircularProgressIndicator(color: AppColors.arcReactorCyan);
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const CircularProgressIndicator(color: AppColors.arcReactorCyan),
+            const SizedBox(height: 12),
+            Text(
+              'INITIALIZING FEED...',
+              style: GoogleFonts.rajdhani(
+                color: AppColors.textDim,
+                fontSize: 11,
+                letterSpacing: 3,
+              ),
+            ),
+          ],
+        ).animate(onPlay: (c) => c.repeat()).shimmer(
+              duration: 1500.ms,
+              color: AppColors.arcReactorCyan.withValues(alpha: 0.3),
+            );
       }
       return AspectRatio(
         aspectRatio: _videoController!.value.aspectRatio,
         child: Chewie(controller: _chewieController!),
-      );
+      ).animate().fadeIn(duration: 500.ms).scale(begin: const Offset(0.95, 0.95));
     }
 
     // ── Image ──────────────────────────────────────────────────────────────
     if (widget.response.hasBytes) {
-      return _zoomable(Image.memory(
-        widget.response.mediaBytes!,
-        fit: BoxFit.contain,
-        errorBuilder: (_, __, ___) => _placeholder('Could not decode image, sir.'),
-      ));
+      return _zoomable(
+        Image.memory(
+          widget.response.mediaBytes!,
+          fit: BoxFit.contain,
+          errorBuilder: (_, __, ___) =>
+              _placeholder('Could not decode image, sir.'),
+        ).animate().fadeIn(duration: 600.ms).scale(begin: const Offset(0.9, 0.9)),
+      );
     }
 
-    return _zoomable(CachedNetworkImage(
-      imageUrl: widget.response.mediaUrl!,
-      fit: BoxFit.contain,
-      placeholder: (_, __) =>
-          const CircularProgressIndicator(color: AppColors.arcReactorCyan),
-      errorWidget: (_, __, ___) =>
-          _placeholder('Could not load image, sir.'),
-    ));
+    return _zoomable(
+      CachedNetworkImage(
+        imageUrl: widget.response.mediaUrl!,
+        fit: BoxFit.contain,
+        placeholder: (_, __) => Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const CircularProgressIndicator(color: AppColors.arcReactorCyan),
+            const SizedBox(height: 12),
+            Text(
+              'LOADING...',
+              style: GoogleFonts.rajdhani(
+                color: AppColors.textDim,
+                fontSize: 11,
+                letterSpacing: 3,
+              ),
+            ),
+          ],
+        ),
+        errorWidget: (_, __, ___) =>
+            _placeholder('Could not load image, sir.'),
+      ).animate().fadeIn(duration: 600.ms),
+    );
   }
 
   Widget _zoomable(Widget child) => InteractiveViewer(
@@ -225,18 +318,48 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
         margin: const EdgeInsets.symmetric(horizontal: 24),
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
         decoration: BoxDecoration(
-          color: Colors.black.withValues(alpha: 0.75),
-          borderRadius: BorderRadius.circular(4),
+          color: Colors.black.withValues(alpha: 0.8),
+          borderRadius: BorderRadius.circular(8),
           border: Border.all(
-              color: AppColors.arcReactorCyan.withValues(alpha: 0.3)),
+            color: AppColors.arcReactorCyan.withValues(alpha: 0.3),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.arcReactorCyan.withValues(alpha: 0.1),
+              blurRadius: 20,
+            ),
+          ],
         ),
-        child: Text(
-          widget.response.spokenMessage!,
-          textAlign: TextAlign.center,
-          style: GoogleFonts.rajdhani(
-              color: AppColors.textPrimary, fontSize: 15, letterSpacing: 1.2),
+        child: Row(
+          children: [
+            Container(
+              width: 2,
+              height: 32,
+              decoration: BoxDecoration(
+                color: AppColors.arcReactorCyan,
+                borderRadius: BorderRadius.circular(1),
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.arcReactorCyan.withValues(alpha: 0.6),
+                    blurRadius: 8,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                widget.response.spokenMessage!,
+                textAlign: TextAlign.start,
+                style: GoogleFonts.rajdhani(
+                    color: AppColors.textPrimary,
+                    fontSize: 15,
+                    letterSpacing: 1.2),
+              ),
+            ),
+          ],
         ),
-      ).animate().fadeIn(delay: 300.ms).slideY(begin: 0.2, end: 0),
+      ).animate().fadeIn(delay: 400.ms).slideY(begin: 0.3, end: 0),
     );
   }
 
@@ -249,20 +372,31 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
         decoration: BoxDecoration(
           color: AppColors.cardSurface,
-          borderRadius: BorderRadius.circular(4),
+          borderRadius: BorderRadius.circular(8),
           border: Border.all(
-              color: AppColors.arcReactorCyan.withValues(alpha: 0.5)),
+            color: _saveSuccess
+                ? AppColors.arcReactorCyan.withValues(alpha: 0.5)
+                : AppColors.ironRed.withValues(alpha: 0.5),
+          ),
           boxShadow: [
             BoxShadow(
-              color: AppColors.arcReactorCyan.withValues(alpha: 0.2),
+              color: (_saveSuccess ? AppColors.arcReactorCyan : AppColors.ironRed)
+                  .withValues(alpha: 0.2),
               blurRadius: 20,
             ),
           ],
         ),
         child: Row(
           children: [
-            const Icon(Icons.check_circle_outline_rounded,
-                color: AppColors.arcReactorCyan, size: 18),
+            Icon(
+              _saveSuccess
+                  ? Icons.check_circle_outline_rounded
+                  : Icons.error_outline_rounded,
+              color: _saveSuccess
+                  ? AppColors.arcReactorCyan
+                  : AppColors.ironRed,
+              size: 18,
+            ),
             const SizedBox(width: 10),
             Expanded(
               child: Text(
@@ -282,7 +416,6 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
   Widget _hudButton({
     required IconData icon,
     VoidCallback? onTap,
-    bool glow = false,
   }) {
     return GestureDetector(
       onTap: onTap,
@@ -291,22 +424,53 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
         height: 40,
         decoration: BoxDecoration(
           color: AppColors.cardSurface,
-          borderRadius: BorderRadius.circular(4),
+          borderRadius: BorderRadius.circular(8),
           border: Border.all(
-            color: AppColors.arcReactorCyan
-                .withValues(alpha: glow ? 0.6 : 0.3),
+            color: AppColors.arcReactorCyan.withValues(alpha: 0.3),
           ),
-          boxShadow: glow
-              ? [
-                  BoxShadow(
-                    color: AppColors.arcReactorCyan.withValues(alpha: 0.3),
-                    blurRadius: 12,
-                  )
-                ]
-              : null,
         ),
         child: Icon(icon, color: AppColors.arcReactorCyan, size: 18),
       ),
     );
   }
+}
+
+class _CornerDecorPainter extends CustomPainter {
+  final Color color;
+  _CornerDecorPainter({required this.color});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color.withAlpha(40)
+      ..strokeWidth = 1.5
+      ..style = PaintingStyle.stroke;
+
+    const len = 24.0;
+
+    // Top-left
+    canvas.drawLine(const Offset(16, 16), const Offset(16 + len, 16), paint);
+    canvas.drawLine(const Offset(16, 16), const Offset(16, 16 + len), paint);
+
+    // Top-right
+    canvas.drawLine(
+        Offset(size.width - 16, 16), Offset(size.width - 16 - len, 16), paint);
+    canvas.drawLine(Offset(size.width - 16, 16),
+        Offset(size.width - 16, 16 + len), paint);
+
+    // Bottom-left
+    canvas.drawLine(Offset(16, size.height - 16),
+        Offset(16 + len, size.height - 16), paint);
+    canvas.drawLine(Offset(16, size.height - 16),
+        Offset(16, size.height - 16 - len), paint);
+
+    // Bottom-right
+    canvas.drawLine(Offset(size.width - 16, size.height - 16),
+        Offset(size.width - 16 - len, size.height - 16), paint);
+    canvas.drawLine(Offset(size.width - 16, size.height - 16),
+        Offset(size.width - 16, size.height - 16 - len), paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _CornerDecorPainter oldDelegate) => false;
 }

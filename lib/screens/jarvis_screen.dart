@@ -7,6 +7,9 @@ import '../core/constants/app_strings.dart';
 import '../cubits/jarvis_cubit.dart';
 import '../cubits/jarvis_state.dart';
 import '../logic/jarvis_response.dart';
+import '../logic/media_cache.dart';
+import '../utils/animations/animated_expandable.dart';
+import '../utils/animations/animated_scale_icon.dart';
 import 'media_viewer_screen.dart';
 import 'widgets/arc_reactor_widget.dart';
 import 'widgets/hud_overlay_painter.dart';
@@ -26,6 +29,9 @@ class _JarvisScreenState extends State<JarvisScreen>
     with SingleTickerProviderStateMixin {
   late AnimationController _scanController;
   final TextEditingController _textController = TextEditingController();
+  final FocusNode _inputFocusNode = FocusNode();
+  bool _inputFocused = false;
+  bool _systemExpanded = false;
 
   @override
   void initState() {
@@ -34,12 +40,20 @@ class _JarvisScreenState extends State<JarvisScreen>
       vsync: this,
       duration: const Duration(seconds: 4),
     )..repeat();
+    _inputFocusNode.addListener(() {
+      setState(() => _inputFocused = _inputFocusNode.hasFocus);
+    });
+    // Start the always-on wake-word listener as soon as the screen is ready.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) context.read<JarvisCubit>().startWakeWordMode();
+    });
   }
 
   @override
   void dispose() {
     _scanController.dispose();
     _textController.dispose();
+    _inputFocusNode.dispose();
     super.dispose();
   }
 
@@ -51,20 +65,22 @@ class _JarvisScreenState extends State<JarvisScreen>
         listenWhen: (prev, curr) =>
             curr.pendingResponse != null && prev.pendingResponse == null,
         listener: (context, state) {
-          final response = state.pendingResponse!;
+          final slim = state.pendingResponse!;
           final cubit = context.read<JarvisCubit>();
-          if (response.type == JarvisResponseType.image ||
-              response.type == JarvisResponseType.video) {
+          if (slim.type == JarvisResponseType.image ||
+              slim.type == JarvisResponseType.video) {
+            // Retrieve the full response (with bytes) from the out-of-band cache.
+            final full = MediaCache.instance.consume() ?? slim;
             Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (_) => MediaViewerScreen(response: response),
+                builder: (_) => MediaViewerScreen(response: full),
               ),
             ).then((_) => cubit.consumePendingResponse());
-          } else if (response.type == JarvisResponseType.text) {
+          } else if (slim.type == JarvisResponseType.text) {
             ResponsePopup.show(
               context,
-              response.displayMessage ?? '',
+              slim.displayMessage ?? '',
               cubit.consumePendingResponse,
             );
           }
@@ -95,6 +111,7 @@ class _JarvisScreenState extends State<JarvisScreen>
                           child: Column(
                             children: [
                               _buildTopBar(context, state),
+                              _buildSystemPanel(state),
                               const Spacer(),
                               _buildReactor(context, state),
                               const SizedBox(height: 16),
@@ -135,6 +152,7 @@ class _JarvisScreenState extends State<JarvisScreen>
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
       child: Row(
         children: [
+          // Title block
           Flexible(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -169,22 +187,158 @@ class _JarvisScreenState extends State<JarvisScreen>
             ),
           ),
           const SizedBox(width: 8),
-          // System status indicators
-          _SystemIndicator(active: state.backgroundActive, label: 'BG'),
-          const SizedBox(width: 8),
-          _SystemIndicator(
-              active: state.status != JarvisStatus.error, label: 'SYS'),
-          const SizedBox(width: 16),
-          IconButton(
-            icon: const Icon(Icons.tune_rounded,
-                color: AppColors.arcReactorCyan, size: 22),
-            onPressed: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const SettingsScreen()),
+
+          // System status indicators — tapping expands the system panel
+          GestureDetector(
+            onTap: () => setState(() => _systemExpanded = !_systemExpanded),
+            child: Row(
+              children: [
+                _SystemIndicator(
+                  active: state.backgroundActive,
+                  label: 'BG',
+                ).animate().fadeIn(delay: 200.ms),
+                const SizedBox(width: 8),
+                _SystemIndicator(
+                  active: state.status != JarvisStatus.error,
+                  label: 'SYS',
+                ).animate().fadeIn(delay: 300.ms),
+                const SizedBox(width: 4),
+                AnimatedScaleIcon(
+                  isToggled: _systemExpanded,
+                  activeIcon: Icons.expand_less_rounded,
+                  inactiveIcon: Icons.expand_more_rounded,
+                  activeColor: AppColors.arcReactorCyan,
+                  inactiveColor: AppColors.textDim,
+                  size: 18,
+                ),
+              ],
             ),
           ),
+
+          const SizedBox(width: 8),
+
+          // Settings button
+          GestureDetector(
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => BlocProvider.value(
+                  value: context.read<JarvisCubit>(),
+                  child: const SettingsScreen(),
+                ),
+              ),
+            ),
+            child: Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: AppColors.cardSurface,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: AppColors.arcReactorCyan.withValues(alpha: 0.25),
+                ),
+              ),
+              child: Center(
+                child: AnimatedScaleIcon(
+                  isToggled: false,
+                  activeIcon: Icons.settings_rounded,
+                  inactiveIcon: Icons.tune_rounded,
+                  activeColor: AppColors.arcReactorCyan,
+                  inactiveColor: AppColors.arcReactorCyan,
+                  size: 18,
+                ),
+              ),
+            ),
+          ).animate().fadeIn(delay: 400.ms),
         ],
       ),
+    );
+  }
+
+  Widget _buildSystemPanel(JarvisState state) {
+    return AnimatedExpandable(
+      isExpanded: _systemExpanded,
+      duration: const Duration(milliseconds: 400),
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 24),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          color: AppColors.cardSurface,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: AppColors.arcReactorCyan.withValues(alpha: 0.2),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.arcReactorCyan.withValues(alpha: 0.05),
+              blurRadius: 16,
+              spreadRadius: 2,
+            ),
+          ],
+        ),
+        child: Column(
+          children: [
+            _systemRow(
+              'BACKGROUND SERVICE',
+              state.backgroundActive ? 'ONLINE' : 'OFFLINE',
+              state.backgroundActive,
+            ),
+            const SizedBox(height: 8),
+            _systemRow(
+              'SYSTEM STATUS',
+              state.status == JarvisStatus.error ? 'FAULT' : 'NOMINAL',
+              state.status != JarvisStatus.error,
+            ),
+            const SizedBox(height: 8),
+            _systemRow(
+              'ASSISTANT STATE',
+              state.status.name.toUpperCase(),
+              true,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _systemRow(String label, String value, bool ok) {
+    return Row(
+      children: [
+        Container(
+          width: 6,
+          height: 6,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: ok ? AppColors.arcReactorCyan : AppColors.ironRed,
+            boxShadow: [
+              BoxShadow(
+                color: (ok ? AppColors.arcReactorCyan : AppColors.ironRed)
+                    .withValues(alpha: 0.7),
+                blurRadius: 6,
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(width: 10),
+        Text(
+          label,
+          style: GoogleFonts.rajdhani(
+            color: AppColors.textDim,
+            fontSize: 10,
+            letterSpacing: 2,
+          ),
+        ),
+        const Spacer(),
+        Text(
+          value,
+          style: GoogleFonts.rajdhani(
+            color: ok ? AppColors.arcReactorCyan : AppColors.ironRed,
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 2,
+          ),
+        ),
+      ],
     );
   }
 
@@ -205,16 +359,30 @@ class _JarvisScreenState extends State<JarvisScreen>
       child: Row(
         children: [
           Expanded(
-            child: Container(
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 250),
               decoration: BoxDecoration(
                 color: AppColors.cardSurface,
-                borderRadius: BorderRadius.circular(4),
+                borderRadius: BorderRadius.circular(8),
                 border: Border.all(
-                  color: AppColors.arcReactorCyan.withValues(alpha: 0.3),
+                  color: _inputFocused
+                      ? AppColors.arcReactorCyan.withValues(alpha: 0.8)
+                      : AppColors.arcReactorCyan.withValues(alpha: 0.25),
+                  width: _inputFocused ? 1.5 : 1.0,
                 ),
+                boxShadow: _inputFocused
+                    ? [
+                        BoxShadow(
+                          color: AppColors.arcReactorCyan.withValues(alpha: 0.12),
+                          blurRadius: 16,
+                          spreadRadius: 1,
+                        ),
+                      ]
+                    : null,
               ),
               child: TextField(
                 controller: _textController,
+                focusNode: _inputFocusNode,
                 enabled: !isDisabled,
                 style: GoogleFonts.rajdhani(
                   color: AppColors.textPrimary,
@@ -256,34 +424,38 @@ class _JarvisScreenState extends State<JarvisScreen>
                       _textController.clear();
                     }
                   },
-            child: Container(
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 250),
               width: 48,
               height: 48,
               decoration: BoxDecoration(
-                color: isDisabled
-                    ? AppColors.textDim
-                    : AppColors.arcReactorCyan,
-                borderRadius: BorderRadius.circular(4),
+                color: isDisabled ? AppColors.textDim : AppColors.arcReactorCyan,
+                borderRadius: BorderRadius.circular(8),
                 boxShadow: isDisabled
                     ? null
                     : [
                         BoxShadow(
-                          color: AppColors.arcReactorCyan.withValues(alpha: 0.4),
-                          blurRadius: 12,
+                          color: AppColors.arcReactorCyan.withValues(alpha: 0.45),
+                          blurRadius: 16,
                           spreadRadius: 2,
                         ),
                       ],
               ),
-              child: Icon(
-                Icons.send_rounded,
-                color: isDisabled ? AppColors.background : AppColors.background,
-                size: 20,
+              child: Center(
+                child: AnimatedScaleIcon(
+                  isToggled: isDisabled,
+                  activeIcon: Icons.hourglass_top_rounded,
+                  inactiveIcon: Icons.send_rounded,
+                  activeColor: AppColors.background,
+                  inactiveColor: AppColors.background,
+                  size: 20,
+                ),
               ),
             ),
           ),
         ],
       ),
-    );
+    ).animate().fadeIn(delay: 300.ms).slideY(begin: 0.2, end: 0);
   }
 }
 
@@ -296,6 +468,7 @@ class _SystemIndicator extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Row(
+      mainAxisSize: MainAxisSize.min,
       children: [
         Container(
           width: 5,
@@ -312,7 +485,13 @@ class _SystemIndicator extends StatelessWidget {
               ),
             ],
           ),
-        ),
+        )
+            .animate(onPlay: (c) => c.repeat(reverse: true))
+            .fade(
+              begin: 0.5,
+              end: 1.0,
+              duration: 1200.ms,
+            ),
         const SizedBox(width: 4),
         Text(
           label,
