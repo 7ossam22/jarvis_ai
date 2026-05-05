@@ -12,6 +12,8 @@ class SettingsState extends Equatable {
   final double pitch;
   final double volume;
   final String language;
+  final String voiceName;
+  final List<Map<String, String>> availableVoices;
 
   // Behavior
   final int processingMessageIntervalSecs;
@@ -27,13 +29,15 @@ class SettingsState extends Equatable {
     this.n8nBaseUrl = Env.n8nBaseUrl,
     this.webhookPath = Env.n8nWebHookUrl,
     this.apiKey = '',
-    this.speechRate = 0.48,
-    this.pitch = 0.85,
+    this.speechRate = 0.52,
+    this.pitch = 1.0,
     this.volume = 1.0,
     this.language = 'en-US',
+    this.voiceName = '',
+    this.availableVoices = const [],
     this.processingMessageIntervalSecs = 8,
     this.pollingIntervalSecs = 5,
-    this.autoListenAfterResponse = false,
+    this.autoListenAfterResponse = true,
     this.speakProcessingMessages = true,
     this.wakeWord = 'jarvis',
     this.saved = false,
@@ -47,6 +51,8 @@ class SettingsState extends Equatable {
     double? pitch,
     double? volume,
     String? language,
+    String? voiceName,
+    List<Map<String, String>>? availableVoices,
     int? processingMessageIntervalSecs,
     int? pollingIntervalSecs,
     bool? autoListenAfterResponse,
@@ -62,6 +68,8 @@ class SettingsState extends Equatable {
         pitch: pitch ?? this.pitch,
         volume: volume ?? this.volume,
         language: language ?? this.language,
+        voiceName: voiceName ?? this.voiceName,
+        availableVoices: availableVoices ?? this.availableVoices,
         processingMessageIntervalSecs:
             processingMessageIntervalSecs ?? this.processingMessageIntervalSecs,
         pollingIntervalSecs: pollingIntervalSecs ?? this.pollingIntervalSecs,
@@ -82,6 +90,8 @@ class SettingsState extends Equatable {
         pitch,
         volume,
         language,
+        voiceName,
+        availableVoices,
         processingMessageIntervalSecs,
         pollingIntervalSecs,
         autoListenAfterResponse,

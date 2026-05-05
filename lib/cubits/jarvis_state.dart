@@ -1,5 +1,6 @@
 import 'package:equatable/equatable.dart';
 import '../logic/jarvis_response.dart';
+import '../logic/chat_message.dart';
 
 enum JarvisStatus { idle, listening, processing, speaking, error }
 
@@ -10,6 +11,7 @@ class JarvisState extends Equatable {
   final String lastResponse;
   final double soundLevel;
   final bool backgroundActive;
+  final List<ChatMessage> chatHistory;
 
   /// Non-null when the cubit wants the UI to show a media viewer or text popup.
   /// Set back to null after the UI consumes it.
@@ -22,6 +24,7 @@ class JarvisState extends Equatable {
     this.lastResponse = '',
     this.soundLevel = 0,
     this.backgroundActive = false,
+    this.chatHistory = const [],
     this.pendingResponse,
   });
 
@@ -32,6 +35,7 @@ class JarvisState extends Equatable {
     String? lastResponse,
     double? soundLevel,
     bool? backgroundActive,
+    List<ChatMessage>? chatHistory,
     JarvisResponse? pendingResponse,
     bool clearPending = false,
   }) =>
@@ -42,6 +46,7 @@ class JarvisState extends Equatable {
         lastResponse: lastResponse ?? this.lastResponse,
         soundLevel: soundLevel ?? this.soundLevel,
         backgroundActive: backgroundActive ?? this.backgroundActive,
+        chatHistory: chatHistory ?? this.chatHistory,
         pendingResponse: clearPending ? null : (pendingResponse ?? this.pendingResponse),
       );
 
@@ -53,6 +58,7 @@ class JarvisState extends Equatable {
         lastResponse,
         soundLevel,
         backgroundActive,
+        chatHistory,
         pendingResponse,
       ];
 }

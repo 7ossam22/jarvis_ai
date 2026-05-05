@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../core/constants/app_colors.dart';
-import '../core/constants/app_strings.dart';
 import '../core/di/service_locator.dart';
 import '../cubits/jarvis_cubit.dart';
 import '../cubits/settings_cubit.dart';
@@ -55,7 +53,9 @@ class _SettingsViewState extends State<_SettingsView> {
   }
 
   void _populate(SettingsState state) {
-    if (_populated) return;
+    if (_populated) {
+      return;
+    }
     _urlController.text = state.n8nBaseUrl;
     _pathController.text = state.webhookPath;
     _keyController.text = state.apiKey;
@@ -68,31 +68,24 @@ class _SettingsViewState extends State<_SettingsView> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text(AppStrings.settingsTitle),
+        title: const Text('SYSTEM CONFIGURATION'),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_rounded,
-              color: AppColors.arcReactorCyan, size: 18),
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18),
           onPressed: () => Navigator.pop(context),
+        ),
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(1),
+          child: Divider(height: 1, color: AppColors.borderLight, thickness: 1),
         ),
       ),
       body: BlocConsumer<SettingsCubit, SettingsState>(
+        listenWhen: (prev, curr) => !prev.saved && curr.saved,
         listener: (context, state) {
           _populate(state);
           if (state.saved) {
-            // Reload TTS settings in the active JarvisCubit
             context.read<JarvisCubit>().reloadSettings();
             ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                backgroundColor: AppColors.arcReactorCyan,
-                content: Text(
-                  'Configuration saved, sir.',
-                  style: GoogleFonts.rajdhani(
-                    color: AppColors.background,
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: 1.5,
-                  ),
-                ),
-              ),
+              const SnackBar(content: Text('Configuration saved, sir.')),
             );
           }
         },
@@ -104,168 +97,104 @@ class _SettingsViewState extends State<_SettingsView> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // ── N8N ──────────────────────────────────────────────────
-                _sectionHeader('N8N COMMAND CENTER', Icons.hub_rounded),
+                _sectionHeader('Connectivity'),
                 const SizedBox(height: 16),
-                _textField(
-                  controller: _urlController,
-                  label: 'Base URL',
-                  hint: AppStrings.n8nUrlHint,
-                  icon: Icons.language_rounded,
-                  keyboardType: TextInputType.url,
-                ),
-                const SizedBox(height: 12),
-                _textField(
-                  controller: _pathController,
-                  label: 'Webhook Path',
-                  hint: AppStrings.webhookPathHint,
-                  icon: Icons.route_rounded,
-                ),
-                const SizedBox(height: 12),
-                _textField(
-                  controller: _keyController,
-                  label: 'API Key',
-                  hint: AppStrings.apiKeyHint,
-                  icon: Icons.key_rounded,
-                  obscure: !_keyVisible,
-                  suffix: IconButton(
-                    icon: Icon(
-                      _keyVisible
-                          ? Icons.visibility_off_rounded
-                          : Icons.visibility_rounded,
-                      color: AppColors.textSecondary,
-                      size: 18,
-                    ),
-                    onPressed: () =>
-                        setState(() => _keyVisible = !_keyVisible),
+                _card(
+                  child: Column(
+                    children: [
+                      _inputLabel('Base URL'),
+                      TextField(
+                        controller: _urlController,
+                        decoration: const InputDecoration(hintText: 'https://n8n.example.com'),
+                      ),
+                      const SizedBox(height: 20),
+                      _inputLabel('Webhook Path'),
+                      TextField(
+                        controller: _pathController,
+                        decoration: const InputDecoration(hintText: '/webhook/jarvis'),
+                      ),
+                      const SizedBox(height: 20),
+                      _inputLabel('API Key'),
+                      TextField(
+                        controller: _keyController,
+                        obscureText: !_keyVisible,
+                        decoration: InputDecoration(
+                          hintText: 'Optional',
+                          suffixIcon: IconButton(
+                            icon: Icon(_keyVisible ? Icons.visibility_off : Icons.visibility),
+                            onPressed: () => setState(() => _keyVisible = !_keyVisible),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 12),
-                _infoCard(
-                  'Webhook POST body',
-                  '{ "command": "turn off the lights" }',
-                ),
-                const SizedBox(height: 8),
-                _infoCard(
-                  'Expected response',
-                  '{ "response": "Done sir." }',
+
+                const SizedBox(height: 32),
+                _sectionHeader('Voice Configuration'),
+                const SizedBox(height: 16),
+                _card(
+                  child: Column(
+                    children: [
+                      _dropdownTile(
+                        label: 'Preferred Persona',
+                        value: state.voiceName,
+                        options: {
+                          '': 'Default System Voice',
+                          ...Map.fromEntries(state.availableVoices.map((v) => MapEntry(v['name']!, v['name']!))),
+                        },
+                        onChanged: cubit.updateVoiceName,
+                      ),
+                      const SizedBox(height: 20),
+                      _slider('Speech Rate', state.speechRate, 0.1, 1.0, (v) => cubit.updateSpeechRate(v)),
+                      const SizedBox(height: 20),
+                      _slider('Voice Pitch', state.pitch, 0.5, 2.0, (v) => cubit.updatePitch(v)),
+                      const SizedBox(height: 20),
+                      _slider('Volume', state.volume, 0.0, 1.0, (v) => cubit.updateVolume(v)),
+                    ],
+                  ),
                 ),
 
-                _divider(),
-
-                // ── VOICE ────────────────────────────────────────────────
-                _sectionHeader('VOICE ENGINE', Icons.record_voice_over_rounded),
-                const SizedBox(height: 20),
-                _sliderTile(
-                  label: 'Speech Rate',
-                  value: state.speechRate,
-                  min: 0.1,
-                  max: 1.0,
-                  divisions: 18,
-                  leftLabel: 'Slow',
-                  rightLabel: 'Fast',
-                  display: state.speechRate.toStringAsFixed(2),
-                  onChanged: cubit.updateSpeechRate,
-                ),
-                const SizedBox(height: 20),
-                _sliderTile(
-                  label: 'Pitch',
-                  value: state.pitch,
-                  min: 0.5,
-                  max: 2.0,
-                  divisions: 15,
-                  leftLabel: 'Deep',
-                  rightLabel: 'High',
-                  display: state.pitch.toStringAsFixed(2),
-                  onChanged: cubit.updatePitch,
-                ),
-                const SizedBox(height: 20),
-                _sliderTile(
-                  label: 'Volume',
-                  value: state.volume,
-                  min: 0.0,
-                  max: 1.0,
-                  divisions: 10,
-                  leftLabel: 'Silent',
-                  rightLabel: 'Max',
-                  display: '${(state.volume * 100).round()}%',
-                  onChanged: cubit.updateVolume,
-                ),
-                const SizedBox(height: 20),
-                _dropdownTile(
-                  label: 'Language',
-                  value: state.language,
-                  options: const {
-                    'en-US': 'English (US)',
-                    'en-GB': 'English (UK)',
-                    'en-AU': 'English (AU)',
-                    'fr-FR': 'French',
-                    'de-DE': 'German',
-                    'es-ES': 'Spanish',
-                    'ar-SA': 'Arabic',
-                    'ja-JP': 'Japanese',
-                    'zh-CN': 'Chinese (Mandarin)',
-                  },
-                  onChanged: cubit.updateLanguage,
+                const SizedBox(height: 32),
+                _sectionHeader('Assistant Behavior'),
+                const SizedBox(height: 16),
+                _card(
+                  child: Column(
+                    children: [
+                      _inputLabel('Wake Word'),
+                      TextField(
+                        controller: _wakeWordController,
+                        decoration: const InputDecoration(hintText: 'e.g. jarvis'),
+                      ),
+                      const SizedBox(height: 24),
+                      _toggle('Auto-listen after speaking', 'Starts listening automatically after a response', state.autoListenAfterResponse, cubit.toggleAutoListen),
+                      const SizedBox(height: 16),
+                      _toggle('Speak processing status', 'Audible feedback while working on a request', state.speakProcessingMessages, cubit.toggleSpeakProcessing),
+                      if (state.speakProcessingMessages) ...[
+                        const SizedBox(height: 16),
+                        _slider(
+                          'Status Interval',
+                          state.processingMessageIntervalSecs.toDouble(),
+                          4,
+                          30,
+                          (v) => cubit.updateProcessingInterval(v.round()),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.only(top: 4),
+                          child: Align(
+                            alignment: Alignment.centerRight,
+                            child: Text(
+                              'Repeats every ${state.processingMessageIntervalSecs} seconds',
+                              style: GoogleFonts.inter(color: AppColors.textMuted, fontSize: 11),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
                 ),
 
-                _divider(),
-
-                // ── BEHAVIOR ─────────────────────────────────────────────
-                _sectionHeader('BEHAVIOR', Icons.psychology_rounded),
-                const SizedBox(height: 20),
-                _textField(
-                  controller: _wakeWordController,
-                  label: 'Wake Word',
-                  hint: 'e.g. jarvis',
-                  icon: Icons.record_voice_over_rounded,
-                ),
-                const SizedBox(height: 20),
-                _sliderTile(
-                  label: 'Processing Message Interval',
-                  value: state.processingMessageIntervalSecs.toDouble(),
-                  min: 4,
-                  max: 30,
-                  divisions: 26,
-                  leftLabel: '4s',
-                  rightLabel: '30s',
-                  display: '${state.processingMessageIntervalSecs}s',
-                  onChanged: (v) =>
-                      cubit.updateProcessingInterval(v.round()),
-                ),
-                const SizedBox(height: 20),
-                _sliderTile(
-                  label: 'n8n Poll Interval',
-                  value: state.pollingIntervalSecs.toDouble(),
-                  min: 2,
-                  max: 20,
-                  divisions: 18,
-                  leftLabel: '2s',
-                  rightLabel: '20s',
-                  display: '${state.pollingIntervalSecs}s',
-                  onChanged: (v) =>
-                      cubit.updatePollingInterval(v.round()),
-                ),
-                const SizedBox(height: 20),
-                _toggleTile(
-                  label: 'Auto-listen After Response',
-                  subtitle:
-                      'Jarvis starts listening again after speaking',
-                  value: state.autoListenAfterResponse,
-                  onChanged: cubit.toggleAutoListen,
-                ),
-                const SizedBox(height: 12),
-                _toggleTile(
-                  label: 'Speak Processing Messages',
-                  subtitle:
-                      '"Still processing sir" spoken aloud while waiting',
-                  value: state.speakProcessingMessages,
-                  onChanged: cubit.toggleSpeakProcessing,
-                ),
-
-                _divider(),
-
-                // ── SAVE ─────────────────────────────────────────────────
+                const SizedBox(height: 40),
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
@@ -274,23 +203,11 @@ class _SettingsViewState extends State<_SettingsView> {
                       webhookPath: _pathController.text,
                       apiKey: _keyController.text,
                       wakeWord: _wakeWordController.text,
+                      voiceName: state.voiceName,
                     ),
-                    style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(4)),
-                    ),
-                    child: Text(
-                      'SAVE CONFIGURATION',
-                      style: GoogleFonts.rajdhani(
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 3,
-                        fontSize: 15,
-                      ),
-                    ),
+                    child: const Text('SAVE CONFIGURATION'),
                   ),
-                ).animate().fadeIn(delay: 200.ms),
-
+                ),
                 const SizedBox(height: 40),
               ],
             ),
@@ -300,225 +217,85 @@ class _SettingsViewState extends State<_SettingsView> {
     );
   }
 
-  // ── Builders ──────────────────────────────────────────────────────────────
-
-  Widget _sectionHeader(String label, IconData icon) {
-    return Row(
-      children: [
-        Icon(icon, color: AppColors.arcReactorCyan, size: 16),
-        const SizedBox(width: 8),
-        Text(
-          label,
-          style: GoogleFonts.rajdhani(
-            color: AppColors.arcReactorCyan,
-            fontSize: 12,
-            letterSpacing: 3,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-      ],
-    ).animate().fadeIn(duration: 400.ms);
-  }
-
-  Widget _divider() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 28),
-      child: Row(
-        children: [
-          Expanded(
-            child: Container(
-              height: 1,
-              decoration: BoxDecoration(
-                gradient: LinearGradient(colors: [
-                  Colors.transparent,
-                  AppColors.arcReactorCyan.withValues(alpha: 0.3),
-                  Colors.transparent,
-                ]),
-              ),
-            ),
-          ),
-        ],
+  Widget _sectionHeader(String title) {
+    return Text(
+      title.toUpperCase(),
+      style: GoogleFonts.inter(
+        color: AppColors.textMuted,
+        fontSize: 12,
+        fontWeight: FontWeight.w800,
+        letterSpacing: 1.5,
       ),
     );
   }
 
-  Widget _textField({
-    required TextEditingController controller,
-    required String label,
-    required String hint,
-    required IconData icon,
-    TextInputType? keyboardType,
-    bool obscure = false,
-    Widget? suffix,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label.toUpperCase(),
-          style: GoogleFonts.rajdhani(
-            color: AppColors.textDim,
-            fontSize: 10,
-            letterSpacing: 2,
-          ),
-        ),
-        const SizedBox(height: 6),
-        TextField(
-          controller: controller,
-          obscureText: obscure,
-          keyboardType: keyboardType,
-          style: GoogleFonts.rajdhani(
-            color: AppColors.textPrimary,
-            fontSize: 15,
-            letterSpacing: 1,
-          ),
-          decoration: InputDecoration(
-            hintText: hint,
-            prefixIcon:
-                Icon(icon, color: AppColors.arcReactorCyan, size: 18),
-            suffixIcon: suffix,
-          ),
-        ),
-      ],
+  Widget _card({required Widget child}) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.borderLight, width: 1.5),
+      ),
+      child: child,
     );
   }
 
-  Widget _sliderTile({
-    required String label,
-    required double value,
-    required double min,
-    required double max,
-    required int divisions,
-    required String leftLabel,
-    required String rightLabel,
-    required String display,
-    required ValueChanged<double> onChanged,
-  }) {
+  Widget _inputLabel(String label) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: Text(
+          label,
+          style: GoogleFonts.inter(
+            color: AppColors.textSecondary,
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _slider(String label, double value, double min, double max, ValueChanged<double> onChanged) {
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          children: [
-            Text(
-              label.toUpperCase(),
-              style: GoogleFonts.rajdhani(
-                color: AppColors.textDim,
-                fontSize: 10,
-                letterSpacing: 2,
-              ),
-            ),
-            const Spacer(),
-            Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-              decoration: BoxDecoration(
-                color: AppColors.cardSurface,
-                borderRadius: BorderRadius.circular(4),
-                border: Border.all(
-                    color: AppColors.arcReactorCyan.withValues(alpha: 0.4)),
-              ),
-              child: Text(
-                display,
-                style: GoogleFonts.rajdhani(
-                  color: AppColors.arcReactorCyan,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: 1,
-                ),
-              ),
-            ),
-          ],
-        ),
-        SliderTheme(
-          data: SliderThemeData(
-            activeTrackColor: AppColors.arcReactorCyan,
-            inactiveTrackColor: AppColors.textDim.withValues(alpha: 0.3),
-            thumbColor: AppColors.arcReactorCyan,
-            overlayColor: AppColors.arcReactorCyan.withValues(alpha: 0.2),
-            thumbShape:
-                const RoundSliderThumbShape(enabledThumbRadius: 6),
-            overlayShape:
-                const RoundSliderOverlayShape(overlayRadius: 14),
-            trackHeight: 2,
-          ),
-          child: Slider(
-            value: value,
-            min: min,
-            max: max,
-            divisions: divisions,
-            onChanged: onChanged,
-          ),
-        ),
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(leftLabel,
-                style: GoogleFonts.rajdhani(
-                    color: AppColors.textDim,
-                    fontSize: 10,
-                    letterSpacing: 1)),
-            Text(rightLabel,
-                style: GoogleFonts.rajdhani(
-                    color: AppColors.textDim,
-                    fontSize: 10,
-                    letterSpacing: 1)),
+            Text(label, style: GoogleFonts.inter(color: AppColors.textSecondary, fontSize: 13, fontWeight: FontWeight.w600)),
+            Text(value.toStringAsFixed(2), style: GoogleFonts.inter(color: AppColors.primary, fontWeight: FontWeight.w700, fontSize: 13)),
           ],
+        ),
+        Slider(
+          value: value,
+          min: min,
+          max: max,
+          onChanged: onChanged,
         ),
       ],
     );
   }
 
-  Widget _toggleTile({
-    required String label,
-    required String subtitle,
-    required bool value,
-    required ValueChanged<bool> onChanged,
-  }) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        color: AppColors.cardSurface,
-        borderRadius: BorderRadius.circular(4),
-        border: Border.all(
-            color: value
-                ? AppColors.arcReactorCyan.withValues(alpha: 0.4)
-                : AppColors.textDim.withValues(alpha: 0.2)),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  label,
-                  style: GoogleFonts.rajdhani(
-                    color: AppColors.textPrimary,
-                    fontSize: 15,
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: 1,
-                  ),
-                ),
-                Text(
-                  subtitle,
-                  style: GoogleFonts.rajdhani(
-                    color: AppColors.textSecondary,
-                    fontSize: 12,
-                    letterSpacing: 0.5,
-                  ),
-                ),
-              ],
-            ),
+  Widget _toggle(String label, String subtitle, bool value, ValueChanged<bool> onChanged) {
+    return Row(
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(label, style: GoogleFonts.inter(color: AppColors.textSecondary, fontSize: 14, fontWeight: FontWeight.w600)),
+              Text(subtitle, style: GoogleFonts.inter(color: AppColors.textMuted, fontSize: 11)),
+            ],
           ),
-          Switch(
-            value: value,
-            onChanged: onChanged,
-            activeColor: AppColors.arcReactorCyan,
-            inactiveThumbColor: AppColors.textDim,
-            inactiveTrackColor: AppColors.textDim.withValues(alpha: 0.2),
-          ),
-        ],
-      ),
+        ),
+        Switch.adaptive(
+          value: value,
+          onChanged: onChanged,
+          activeColor: AppColors.primary,
+        ),
+      ],
     );
   }
 
@@ -533,72 +310,54 @@ class _SettingsViewState extends State<_SettingsView> {
       children: [
         Text(
           label.toUpperCase(),
-          style: GoogleFonts.rajdhani(
-            color: AppColors.textDim,
-            fontSize: 10,
-            letterSpacing: 2,
+          style: GoogleFonts.inter(
+            color: AppColors.textSecondary,
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 1,
           ),
         ),
-        const SizedBox(height: 6),
+        const SizedBox(height: 8),
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
+          padding: const EdgeInsets.symmetric(horizontal: 12),
           decoration: BoxDecoration(
-            color: AppColors.cardSurface,
-            borderRadius: BorderRadius.circular(4),
-            border: Border.all(color: AppColors.textDim.withValues(alpha: 0.4)),
+            color: AppColors.background,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: AppColors.borderLight,
+              width: 1.5,
+            ),
           ),
           child: DropdownButtonHideUnderline(
             child: DropdownButton<String>(
               value: options.containsKey(value) ? value : options.keys.first,
               isExpanded: true,
-              dropdownColor: AppColors.cardSurface,
+              dropdownColor: AppColors.surface,
               icon: const Icon(Icons.expand_more_rounded,
-                  color: AppColors.arcReactorCyan, size: 20),
+                  color: AppColors.primary, size: 20),
               items: options.entries
                   .map((e) => DropdownMenuItem(
                         value: e.key,
                         child: Text(
                           e.value,
-                          style: GoogleFonts.rajdhani(
+                          overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.inter(
                             color: AppColors.textPrimary,
-                            fontSize: 15,
-                            letterSpacing: 1,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
                           ),
                         ),
                       ))
                   .toList(),
               onChanged: (v) {
-                if (v != null) onChanged(v);
+                if (v != null) {
+                  onChanged(v);
+                }
               },
             ),
           ),
         ),
       ],
-    );
-  }
-
-  Widget _infoCard(String label, String value) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: AppColors.cardSurface,
-        borderRadius: BorderRadius.circular(4),
-        border: Border.all(color: AppColors.textDim.withValues(alpha: 0.2)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(label,
-              style: GoogleFonts.rajdhani(
-                  color: AppColors.textSecondary,
-                  fontSize: 11,
-                  letterSpacing: 2)),
-          const SizedBox(height: 4),
-          Text(value,
-              style: GoogleFonts.sourceCodePro(
-                  color: AppColors.ironGold, fontSize: 12)),
-        ],
-      ),
     );
   }
 }

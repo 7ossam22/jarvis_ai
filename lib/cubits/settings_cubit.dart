@@ -1,15 +1,20 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../core/env/env.dart';
+import '../services/tts_service.dart';
 import 'settings_state.dart';
 
 class SettingsCubit extends Cubit<SettingsState> {
-  SettingsCubit() : super(const SettingsState()) {
+  final TtsService _ttsService;
+
+  SettingsCubit(this._ttsService) : super(const SettingsState()) {
     _load();
   }
 
   Future<void> _load() async {
     final p = await SharedPreferences.getInstance();
+    final voices = await _ttsService.getVoices();
+
     emit(SettingsState(
       n8nBaseUrl: p.getString('n8n_base_url') ?? Env.n8nBaseUrl,
       webhookPath: p.getString('n8n_webhook_path') ?? Env.n8nWebHookUrl,
@@ -18,10 +23,12 @@ class SettingsCubit extends Cubit<SettingsState> {
       pitch: p.getDouble('tts_pitch') ?? 0.85,
       volume: p.getDouble('tts_volume') ?? 1.0,
       language: p.getString('tts_language') ?? 'en-US',
+      voiceName: p.getString('tts_voice_name') ?? '',
+      availableVoices: voices,
       processingMessageIntervalSecs:
           p.getInt('behavior_processing_interval') ?? 8,
       pollingIntervalSecs: p.getInt('behavior_polling_interval') ?? 5,
-      autoListenAfterResponse: p.getBool('behavior_auto_listen') ?? false,
+      autoListenAfterResponse: p.getBool('behavior_auto_listen') ?? true,
       speakProcessingMessages: p.getBool('behavior_speak_processing') ?? true,
       wakeWord: p.getString('behavior_wake_word') ?? 'jarvis',
     ));
@@ -30,15 +37,26 @@ class SettingsCubit extends Cubit<SettingsState> {
   void updateSpeechRate(double v) => emit(state.copyWith(speechRate: v));
   void updatePitch(double v) => emit(state.copyWith(pitch: v));
   void updateVolume(double v) => emit(state.copyWith(volume: v));
-  void updateLanguage(String v) => emit(state.copyWith(language: v));
+  void updateLanguage(String v) async {
+    emit(state.copyWith(language: v));
+    final voices = await _ttsService.getVoices();
+    emit(state.copyWith(availableVoices: voices));
+  }
+
+  void updateVoiceName(String v) => emit(state.copyWith(voiceName: v));
+
   void updateProcessingInterval(int v) =>
       emit(state.copyWith(processingMessageIntervalSecs: v));
+
   void updatePollingInterval(int v) =>
       emit(state.copyWith(pollingIntervalSecs: v));
+
   void toggleAutoListen(bool v) =>
       emit(state.copyWith(autoListenAfterResponse: v));
+
   void toggleSpeakProcessing(bool v) =>
       emit(state.copyWith(speakProcessingMessages: v));
+
   void updateWakeWord(String v) => emit(state.copyWith(wakeWord: v));
 
   Future<void> save({
@@ -46,6 +64,7 @@ class SettingsCubit extends Cubit<SettingsState> {
     required String webhookPath,
     required String apiKey,
     required String wakeWord,
+    required String voiceName,
   }) async {
     final p = await SharedPreferences.getInstance();
 
@@ -57,6 +76,7 @@ class SettingsCubit extends Cubit<SettingsState> {
     await p.setDouble('tts_pitch', state.pitch);
     await p.setDouble('tts_volume', state.volume);
     await p.setString('tts_language', state.language);
+    await p.setString('tts_voice_name', voiceName);
 
     await p.setInt(
         'behavior_processing_interval', state.processingMessageIntervalSecs);
@@ -70,10 +90,13 @@ class SettingsCubit extends Cubit<SettingsState> {
       webhookPath: webhookPath.trim(),
       apiKey: apiKey.trim(),
       wakeWord: wakeWord.trim().toLowerCase(),
+      voiceName: voiceName,
       saved: true,
     ));
 
     await Future.delayed(const Duration(seconds: 2));
-    if (!isClosed) emit(state.copyWith(saved: false));
+    if (!isClosed) {
+      emit(state.copyWith(saved: false));
+    }
   }
 }

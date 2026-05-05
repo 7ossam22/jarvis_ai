@@ -18,7 +18,7 @@ class ResponsePopup extends StatelessWidget {
       BuildContext context, String message, VoidCallback onDismiss) {
     return showDialog(
       context: context,
-      barrierColor: Colors.black.withValues(alpha: 0.7),
+      barrierColor: AppColors.textPrimary.withValues(alpha: 0.1),
       builder: (_) => ResponsePopup(message: message, onDismiss: onDismiss),
     );
   }
@@ -27,18 +27,18 @@ class ResponsePopup extends StatelessWidget {
   Widget build(BuildContext context) {
     return Dialog(
       backgroundColor: Colors.transparent,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 24),
       child: Container(
-        constraints: const BoxConstraints(maxWidth: 480),
+        constraints: const BoxConstraints(maxWidth: 500),
         decoration: BoxDecoration(
-          color: AppColors.cardSurface,
-          borderRadius: BorderRadius.circular(4),
-          border: Border.all(
-              color: AppColors.arcReactorCyan.withValues(alpha: 0.4)),
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppColors.borderLight, width: 1.5),
           boxShadow: [
             BoxShadow(
-              color: AppColors.arcReactorCyan.withValues(alpha: 0.15),
-              blurRadius: 40,
-              spreadRadius: 5,
+              color: AppColors.textPrimary.withValues(alpha: 0.08),
+              blurRadius: 30,
+              offset: const Offset(0, 10),
             ),
           ],
         ),
@@ -47,106 +47,99 @@ class ResponsePopup extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Header
-            Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-              decoration: BoxDecoration(
-                border: Border(
-                  bottom: BorderSide(
-                      color:
-                          AppColors.arcReactorCyan.withValues(alpha: 0.2)),
-                ),
-              ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
               child: Row(
                 children: [
                   Container(
-                    width: 6,
-                    height: 6,
+                    width: 32,
+                    height: 32,
                     decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: AppColors.arcReactorCyan,
-                      boxShadow: [
-                        BoxShadow(
-                          color: AppColors.arcReactorCyan.withValues(alpha: 0.8),
-                          blurRadius: 8,
-                        )
-                      ],
+                      color: AppColors.primary.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8),
                     ),
+                    child: const Icon(Icons.description_outlined,
+                        color: AppColors.primary, size: 18),
                   ),
-                  const SizedBox(width: 10),
+                  const SizedBox(width: 12),
                   Text(
                     'JARVIS REPORT',
-                    style: GoogleFonts.rajdhani(
-                      color: AppColors.arcReactorCyan,
-                      fontSize: 12,
-                      letterSpacing: 3,
-                      fontWeight: FontWeight.w700,
+                    style: GoogleFonts.inter(
+                      color: AppColors.textPrimary,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 1,
                     ),
                   ),
                   const Spacer(),
-                  GestureDetector(
-                    onTap: () {
+                  IconButton(
+                    onPressed: () {
                       Navigator.of(context).pop();
                       onDismiss();
                     },
-                    child: const Icon(Icons.close_rounded,
-                        color: AppColors.textDim, size: 18),
+                    icon: const Icon(Icons.close_rounded, size: 20),
+                    color: AppColors.textMuted,
                   ),
                 ],
               ),
             ),
 
+            const Divider(height: 1),
+
             // Message body
-            Padding(
-              padding: const EdgeInsets.all(20),
-              child: SelectableText(
-                message,
-                style: GoogleFonts.rajdhani(
-                  color: AppColors.textPrimary,
-                  fontSize: 16,
-                  height: 1.6,
-                  letterSpacing: 0.8,
+            Flexible(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(24),
+                child: SelectableText(
+                  message,
+                  style: GoogleFonts.inter(
+                    color: AppColors.textSecondary,
+                    fontSize: 15,
+                    height: 1.6,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
               ),
             ),
 
+            const Divider(height: 1),
+
             // Footer actions
             Padding(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+              padding: const EdgeInsets.all(16),
               child: Row(
                 children: [
-                  // Copy to clipboard
-                  _actionButton(
-                    icon: Icons.copy_rounded,
-                    label: 'COPY',
-                    onTap: () {
+                  TextButton.icon(
+                    onPressed: () {
                       Clipboard.setData(ClipboardData(text: message));
                       ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          backgroundColor: AppColors.cardSurface,
-                          content: Text(
-                            'Copied to clipboard, sir.',
-                            style: GoogleFonts.rajdhani(
-                              color: AppColors.arcReactorCyan,
-                              letterSpacing: 1,
-                            ),
-                          ),
-                          duration: const Duration(seconds: 2),
+                        const SnackBar(
+                          content: Text('Copied to clipboard.'),
+                          duration: Duration(seconds: 2),
                         ),
                       );
                     },
+                    icon: const Icon(Icons.copy_rounded, size: 16),
+                    label: const Text('COPY'),
+                    style: TextButton.styleFrom(
+                      foregroundColor: AppColors.textSecondary,
+                      textStyle: GoogleFonts.inter(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 1,
+                      ),
+                    ),
                   ),
                   const Spacer(),
-                  // Dismiss
-                  _actionButton(
-                    icon: Icons.check_rounded,
-                    label: 'UNDERSTOOD',
-                    primary: true,
-                    onTap: () {
+                  ElevatedButton(
+                    onPressed: () {
                       Navigator.of(context).pop();
                       onDismiss();
                     },
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                    ),
+                    child: const Text('UNDERSTOOD'),
                   ),
                 ],
               ),
@@ -156,61 +149,7 @@ class ResponsePopup extends StatelessWidget {
       )
           .animate()
           .fadeIn(duration: 300.ms)
-          .scale(begin: const Offset(0.9, 0.9), end: const Offset(1, 1)),
-    );
-  }
-
-  Widget _actionButton({
-    required IconData icon,
-    required String label,
-    required VoidCallback onTap,
-    bool primary = false,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding:
-            const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-        decoration: BoxDecoration(
-          color: primary
-              ? AppColors.arcReactorCyan
-              : AppColors.background,
-          borderRadius: BorderRadius.circular(4),
-          border: Border.all(
-            color: primary
-                ? AppColors.arcReactorCyan
-                : AppColors.textDim.withValues(alpha: 0.4),
-          ),
-          boxShadow: primary
-              ? [
-                  BoxShadow(
-                    color: AppColors.arcReactorCyan.withValues(alpha: 0.3),
-                    blurRadius: 12,
-                  )
-                ]
-              : null,
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              icon,
-              size: 14,
-              color: primary ? AppColors.background : AppColors.textSecondary,
-            ),
-            const SizedBox(width: 6),
-            Text(
-              label,
-              style: GoogleFonts.rajdhani(
-                color: primary ? AppColors.background : AppColors.textSecondary,
-                fontSize: 12,
-                letterSpacing: 2,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ],
-        ),
-      ),
+          .scale(begin: const Offset(0.95, 0.95), end: const Offset(1, 1), curve: Curves.easeOutBack),
     );
   }
 }

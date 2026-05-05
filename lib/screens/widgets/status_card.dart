@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_animate/flutter_animate.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../core/constants/app_colors.dart';
 import '../../cubits/jarvis_state.dart';
@@ -12,125 +11,71 @@ class StatusCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 24),
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
-        color: AppColors.cardSurface.withValues(alpha: 0.8),
-        borderRadius: BorderRadius.circular(4),
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: _borderColor.withValues(alpha: 0.4),
-          width: 1,
+          color: AppColors.borderLight,
+          width: 1.5,
         ),
-        boxShadow: [
-          BoxShadow(
-            color: _borderColor.withValues(alpha: 0.1),
-            blurRadius: 20,
-            spreadRadius: 2,
-          ),
-        ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          // Status badge
-          Row(
-            children: [
-              Container(
-                width: 6,
-                height: 6,
-                decoration: BoxDecoration(
-                  color: _borderColor,
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: _borderColor.withValues(alpha: 0.8),
-                      blurRadius: 6,
-                    ),
-                  ],
-                ),
-              )
-                  .animate(onPlay: (c) => c.repeat())
-                  .fadeIn(duration: 600.ms)
-                  .then()
-                  .fadeOut(duration: 600.ms),
-              const SizedBox(width: 8),
-              Text(
-                _statusLabel.toUpperCase(),
-                style: GoogleFonts.rajdhani(
-                  color: _borderColor,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: 3,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-
-          // Status message
-          Text(
-            state.statusMessage,
-            style: GoogleFonts.rajdhani(
-              color: AppColors.textPrimary,
-              fontSize: 16,
-              letterSpacing: 1.5,
+          Container(
+            width: 8,
+            height: 8,
+            decoration: BoxDecoration(
+              color: _statusColor,
+              shape: BoxShape.circle,
             ),
           ),
-
+          const SizedBox(width: 10),
+          Text(
+            _statusLabel.toUpperCase(),
+            style: GoogleFonts.inter(
+              color: AppColors.textMuted,
+              fontSize: 10,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0.5,
+            ),
+          ),
           if (state.lastCommand.isNotEmpty) ...[
-            const SizedBox(height: 16),
-            _infoRow('COMMAND', state.lastCommand),
-          ],
-          if (state.lastResponse.isNotEmpty) ...[
-            const SizedBox(height: 8),
-            _infoRow('RESPONSE', state.lastResponse),
+            const SizedBox(width: 10),
+            Container(width: 1, height: 12, color: AppColors.borderLight),
+            const SizedBox(width: 10),
+            Flexible(
+              child: Text(
+                state.lastCommand,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: GoogleFonts.inter(
+                  color: AppColors.textSecondary,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
           ],
         ],
       ),
     );
   }
 
-  Widget _infoRow(String label, String value) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: GoogleFonts.rajdhani(
-            color: AppColors.textDim,
-            fontSize: 10,
-            letterSpacing: 2.5,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          value,
-          style: GoogleFonts.rajdhani(
-            color: AppColors.textSecondary,
-            fontSize: 14,
-            letterSpacing: 1,
-          ),
-          maxLines: 3,
-          overflow: TextOverflow.ellipsis,
-        ),
-      ],
-    );
-  }
-
-  Color get _borderColor => switch (state.status) {
-        JarvisStatus.idle => AppColors.arcReactorCyan,
-        JarvisStatus.listening => AppColors.ironGold,
-        JarvisStatus.processing => AppColors.arcReactorCyan,
-        JarvisStatus.speaking => AppColors.ironGold,
-        JarvisStatus.error => AppColors.ironRed,
+  Color get _statusColor => switch (state.status) {
+        JarvisStatus.idle => AppColors.primary,
+        JarvisStatus.listening => AppColors.warning,
+        JarvisStatus.processing => AppColors.indigo,
+        JarvisStatus.speaking => AppColors.success,
+        JarvisStatus.error => AppColors.error,
       };
 
   String get _statusLabel => switch (state.status) {
-        JarvisStatus.idle => 'STANDBY',
+        JarvisStatus.idle => 'IDLE',
         JarvisStatus.listening => 'LISTENING',
-        JarvisStatus.processing => 'PROCESSING',
+        JarvisStatus.processing => 'THINKING',
         JarvisStatus.speaking => 'SPEAKING',
-        JarvisStatus.error => 'ERROR',
+        JarvisStatus.error => 'FAULT',
       };
 }

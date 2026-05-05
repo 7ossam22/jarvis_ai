@@ -26,8 +26,8 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
 
   bool _saving = false;
   String? _saveMessage;
+  bool _saveSuccess = false;
 
-  // Temp file path used when playing video from bytes
   String? _tmpVideoPath;
 
   bool get _isVideo => widget.response.type == JarvisResponseType.video;
@@ -42,10 +42,9 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
     VideoPlayerController controller;
 
     if (widget.response.hasBytes) {
-      // Write bytes to a temp file so VideoPlayerController can read it
       final dir = await getTemporaryDirectory();
       _tmpVideoPath =
-          '${dir.path}/jarvis_preview_${DateTime.now().millisecondsSinceEpoch}.${widget.response.fileExtension}';
+          '${dir.path}/nova_preview_${DateTime.now().millisecondsSinceEpoch}.${widget.response.fileExtension}';
       await File(_tmpVideoPath!).writeAsBytes(widget.response.mediaBytes!);
       controller = VideoPlayerController.file(File(_tmpVideoPath!));
     } else if (widget.response.hasUrl) {
@@ -64,10 +63,10 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
       looping: false,
       allowFullScreen: true,
       materialProgressColors: ChewieProgressColors(
-        playedColor: AppColors.arcReactorCyan,
-        handleColor: AppColors.arcReactorCyan,
-        backgroundColor: AppColors.textDim,
-        bufferedColor: AppColors.arcReactorCyan.withValues(alpha: 0.3),
+        playedColor: AppColors.primary,
+        handleColor: AppColors.primary,
+        backgroundColor: AppColors.borderMedium,
+        bufferedColor: AppColors.primary.withValues(alpha: 0.3),
       ),
     );
 
@@ -78,15 +77,19 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
   void dispose() {
     _chewieController?.dispose();
     _videoController?.dispose();
-    // Clean up temp video file
     if (_tmpVideoPath != null) {
-      try { File(_tmpVideoPath!).deleteSync(); } catch (_) {}
+      try {
+        File(_tmpVideoPath!).deleteSync();
+      } catch (_) {}
     }
     super.dispose();
   }
 
   Future<void> _save() async {
-    setState(() { _saving = true; _saveMessage = null; });
+    setState(() {
+      _saving = true;
+      _saveMessage = null;
+    });
 
     String? error;
     final r = widget.response;
@@ -100,29 +103,47 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
     } else if (r.hasUrl) {
       error = await _downloadService.saveFromUrl(r.mediaUrl!, isVideo: _isVideo);
     } else {
-      error = 'No media source available, sir.';
+      error = 'No media source available.';
     }
 
     if (!mounted) return;
     setState(() {
       _saving = false;
+      _saveSuccess = error == null;
       _saveMessage = error ??
-          (_isVideo ? 'Video saved to gallery, sir.' : 'Image saved to gallery, sir.');
+          (_isVideo
+              ? 'Video exported to gallery.'
+              : 'Image exported to gallery.');
     });
-    Future.delayed(const Duration(seconds: 3),
-        () { if (mounted) setState(() => _saveMessage = null); });
+    Future.delayed(const Duration(seconds: 3), () {
+      if (mounted) setState(() => _saveMessage = null);
+    });
   }
-
-  // ── Build ─────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: Colors.white,
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        title: Text(_isVideo ? 'VIDEO OUTPUT' : 'IMAGE OUTPUT'),
+        leading: IconButton(
+          icon: const Icon(Icons.close_rounded),
+          onPressed: () => Navigator.pop(context),
+        ),
+        actions: [
+          IconButton(
+            onPressed: _saving ? null : _save,
+            icon: _saving 
+                ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                : const Icon(Icons.file_download_outlined),
+          ),
+          const SizedBox(width: 8),
+        ],
+      ),
       body: Stack(
         children: [
           Center(child: _buildMedia()),
-          _buildTopBar(),
           if (widget.response.spokenMessage != null) _buildCaption(),
           if (_saveMessage != null) _buildToast(),
         ],
@@ -130,48 +151,14 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
     );
   }
 
-  Widget _buildTopBar() {
-    return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        child: Row(
-          children: [
-            _hudButton(
-              icon: Icons.arrow_back_ios_rounded,
-              onTap: () => Navigator.pop(context),
-            ),
-            const Spacer(),
-            Text(
-              _isVideo ? 'VIDEO OUTPUT' : 'IMAGE OUTPUT',
-              style: GoogleFonts.rajdhani(
-                color: AppColors.arcReactorCyan,
-                fontSize: 13,
-                letterSpacing: 4,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            const Spacer(),
-            _hudButton(
-              icon: _saving
-                  ? Icons.hourglass_bottom_rounded
-                  : Icons.download_rounded,
-              onTap: _saving ? null : _save,
-              glow: true,
-            ),
-          ],
-        ),
-      ),
-    ).animate().fadeIn(duration: 400.ms);
-  }
-
   Widget _buildMedia() {
     if (!widget.response.hasMedia) {
-      return _placeholder('No media source available, sir.');
+      return _placeholder('Data source unavailable.');
     }
 
     if (_isVideo) {
       if (_chewieController == null) {
-        return const CircularProgressIndicator(color: AppColors.arcReactorCyan);
+        return const CircularProgressIndicator();
       }
       return AspectRatio(
         aspectRatio: _videoController!.value.aspectRatio,
@@ -179,134 +166,81 @@ class _MediaViewerScreenState extends State<MediaViewerScreen> {
       );
     }
 
-    // ── Image ──────────────────────────────────────────────────────────────
     if (widget.response.hasBytes) {
-      return _zoomable(Image.memory(
-        widget.response.mediaBytes!,
-        fit: BoxFit.contain,
-        errorBuilder: (_, __, ___) => _placeholder('Could not decode image, sir.'),
-      ));
+      return InteractiveViewer(
+        child: Image.memory(
+          widget.response.mediaBytes!,
+          fit: BoxFit.contain,
+          errorBuilder: (_, __, ___) => _placeholder('Decoding failure.'),
+        ),
+      );
     }
 
-    return _zoomable(CachedNetworkImage(
-      imageUrl: widget.response.mediaUrl!,
-      fit: BoxFit.contain,
-      placeholder: (_, __) =>
-          const CircularProgressIndicator(color: AppColors.arcReactorCyan),
-      errorWidget: (_, __, ___) =>
-          _placeholder('Could not load image, sir.'),
-    ));
+    return InteractiveViewer(
+      child: CachedNetworkImage(
+        imageUrl: widget.response.mediaUrl!,
+        fit: BoxFit.contain,
+        placeholder: (_, __) => const CircularProgressIndicator(),
+        errorWidget: (_, __, ___) => _placeholder('Network load failure.'),
+      ),
+    );
   }
-
-  Widget _zoomable(Widget child) => InteractiveViewer(
-        minScale: 0.5,
-        maxScale: 5.0,
-        child: child,
-      );
 
   Widget _placeholder(String msg) => Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.broken_image_rounded,
-              color: AppColors.ironRed, size: 64),
-          const SizedBox(height: 12),
-          Text(msg,
-              style: GoogleFonts.rajdhani(
-                  color: AppColors.textSecondary, fontSize: 14)),
+          const Icon(Icons.error_outline_rounded, color: AppColors.error, size: 48),
+          const SizedBox(height: 16),
+          Text(msg, style: GoogleFonts.inter(color: AppColors.textSecondary, fontSize: 14, fontWeight: FontWeight.w600)),
         ],
       );
 
   Widget _buildCaption() {
-    return Positioned(
-      left: 0,
-      right: 0,
-      bottom: 32,
+    return Align(
+      alignment: Alignment.bottomCenter,
       child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 24),
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+        margin: const EdgeInsets.all(24),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
         decoration: BoxDecoration(
-          color: Colors.black.withValues(alpha: 0.75),
-          borderRadius: BorderRadius.circular(4),
-          border: Border.all(
-              color: AppColors.arcReactorCyan.withValues(alpha: 0.3)),
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.borderLight),
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.textPrimary.withValues(alpha: 0.05),
+              blurRadius: 20,
+            ),
+          ],
         ),
         child: Text(
           widget.response.spokenMessage!,
           textAlign: TextAlign.center,
-          style: GoogleFonts.rajdhani(
-              color: AppColors.textPrimary, fontSize: 15, letterSpacing: 1.2),
+          style: GoogleFonts.inter(
+            color: AppColors.textPrimary,
+            fontSize: 15,
+            fontWeight: FontWeight.w500,
+          ),
         ),
-      ).animate().fadeIn(delay: 300.ms).slideY(begin: 0.2, end: 0),
+      ).animate().fadeIn().slideY(begin: 0.2, end: 0),
     );
   }
 
   Widget _buildToast() {
     return Positioned(
-      top: 100,
-      left: 24,
-      right: 24,
+      top: 16,
+      left: 16,
+      right: 16,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         decoration: BoxDecoration(
-          color: AppColors.cardSurface,
-          borderRadius: BorderRadius.circular(4),
-          border: Border.all(
-              color: AppColors.arcReactorCyan.withValues(alpha: 0.5)),
-          boxShadow: [
-            BoxShadow(
-              color: AppColors.arcReactorCyan.withValues(alpha: 0.2),
-              blurRadius: 20,
-            ),
-          ],
+          color: _saveSuccess ? AppColors.success : AppColors.error,
+          borderRadius: BorderRadius.circular(8),
         ),
-        child: Row(
-          children: [
-            const Icon(Icons.check_circle_outline_rounded,
-                color: AppColors.arcReactorCyan, size: 18),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                _saveMessage!,
-                style: GoogleFonts.rajdhani(
-                    color: AppColors.textPrimary,
-                    fontSize: 14,
-                    letterSpacing: 1),
-              ),
-            ),
-          ],
+        child: Text(
+          _saveMessage!,
+          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
         ),
-      ).animate().fadeIn(duration: 300.ms).slideY(begin: -0.3, end: 0),
-    );
-  }
-
-  Widget _hudButton({
-    required IconData icon,
-    VoidCallback? onTap,
-    bool glow = false,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 40,
-        height: 40,
-        decoration: BoxDecoration(
-          color: AppColors.cardSurface,
-          borderRadius: BorderRadius.circular(4),
-          border: Border.all(
-            color: AppColors.arcReactorCyan
-                .withValues(alpha: glow ? 0.6 : 0.3),
-          ),
-          boxShadow: glow
-              ? [
-                  BoxShadow(
-                    color: AppColors.arcReactorCyan.withValues(alpha: 0.3),
-                    blurRadius: 12,
-                  )
-                ]
-              : null,
-        ),
-        child: Icon(icon, color: AppColors.arcReactorCyan, size: 18),
-      ),
+      ).animate().fadeIn().slideY(begin: -0.2, end: 0),
     );
   }
 }

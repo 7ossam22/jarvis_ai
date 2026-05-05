@@ -6,7 +6,6 @@ import 'core/di/service_locator.dart';
 import 'core/theme/app_theme.dart';
 import 'cubits/jarvis_cubit.dart';
 import 'screens/jarvis_screen.dart';
-import 'services/background_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -14,12 +13,13 @@ void main() async {
   await SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
   SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
     statusBarColor: Colors.transparent,
-    statusBarIconBrightness: Brightness.light,
+    statusBarIconBrightness: Brightness.dark,
   ));
 
   await setupLocator();
   await _requestPermissions();
-  await initializeBackgroundService();
+  // Background service disabled per user request as it is currently unreliable.
+  // await initializeBackgroundService();
 
   runApp(const JarvisApp());
 }
@@ -38,9 +38,9 @@ class JarvisApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'J.A.R.V.I.S',
+      title: 'J.A.R.V.I.S. AI',
       debugShowCheckedModeBanner: false,
-      theme: AppTheme.dark,
+      theme: AppTheme.light,
       home: BlocProvider(
         create: (_) => sl<JarvisCubit>(),
         child: const JarvisScreen(),

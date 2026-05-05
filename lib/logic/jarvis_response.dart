@@ -52,7 +52,9 @@ class JarvisResponse {
     if (mediaUrl != null) {
       final path = Uri.tryParse(mediaUrl!)?.path ?? '';
       final dot = path.lastIndexOf('.');
-      if (dot != -1) return path.substring(dot + 1).split('?').first;
+      if (dot != -1) {
+        return path.substring(dot + 1).split('?').first;
+      }
     }
     return type == JarvisResponseType.video ? 'mp4' : 'jpg';
   }

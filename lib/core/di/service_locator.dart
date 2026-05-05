@@ -22,5 +22,5 @@ Future<void> setupLocator() async {
       ttsService: sl<TtsService>(),
     ),
   );
-  sl.registerFactory<SettingsCubit>(() => SettingsCubit());
+  sl.registerFactory<SettingsCubit>(() => SettingsCubit(sl<TtsService>()));
 }

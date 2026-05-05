@@ -5,6 +5,8 @@ import '../core/constants/app_strings.dart';
 import '../services/speech_service.dart';
 import '../services/tts_service.dart';
 import '../logic/jarvis_response.dart';
+import '../logic/chat_message.dart';
+import '../logic/media_cache.dart';
 import '../logic/n8n_repository.dart';
 import 'jarvis_state.dart';
 
@@ -17,6 +19,17 @@ class JarvisCubit extends Cubit<JarvisState> {
   Timer? _pollingTimer;
   int _processingMessageIndex = 0;
 
+  // Incremented each time a new command starts. Lets in-flight HTTP callbacks
+  // detect that they've been superseded by a new wake-word invocation.
+  int _cmdGen = 0;
+
+  static const _stopPhrases = {
+    'stop', 'stop it', 'stop now', 'cancel', 'cancel it', 'cancel that',
+    'nevermind', 'never mind', 'forget it', 'abort', 'abort mission',
+    'go to sleep', 'sleep', 'halt', 'quiet', 'silence', 'dismiss',
+    'stop listening', 'be quiet', 'shut up',
+  };
+
   JarvisCubit({
     required this.repository,
     required this.speechService,
@@ -28,28 +41,155 @@ class JarvisCubit extends Cubit<JarvisState> {
   Future<void> _applyTtsSettings() async {
     final p = await SharedPreferences.getInstance();
     await ttsService.applySettings(
-      speechRate: p.getDouble('tts_speech_rate') ?? 0.48,
-      pitch: p.getDouble('tts_pitch') ?? 0.85,
+      speechRate: p.getDouble('tts_speech_rate') ?? 0.52,
+      pitch: p.getDouble('tts_pitch') ?? 1.0,
       volume: p.getDouble('tts_volume') ?? 1.0,
       language: p.getString('tts_language') ?? 'en-US',
+      voiceName: p.getString('tts_voice_name') ?? '',
     );
   }
 
   Future<void> reloadSettings() => _applyTtsSettings();
 
-  // ── Listening ────────────────────────────────────────────────────────────
+  // ── Stop / cancel ─────────────────────────────────────────────────────────
 
-  Future<void> startListening() async {
-    if (state.status == JarvisStatus.listening) return;
+  bool _isStopCommand(String text) =>
+      _stopPhrases.contains(text.toLowerCase().trim());
+
+  Future<void> _stopEverything() async {
+    _stopProcessingMessages();
+    _pollingTimer?.cancel();
+    _pollingTimer = null;
+    ++_cmdGen;
+
+    await ttsService.stop();
+    await speechService.cancel();
+    await Future.delayed(const Duration(milliseconds: 300));
+
+    if (isClosed) {
+      return;
+    }
+    emit(state.copyWith(
+      status: JarvisStatus.idle,
+      statusMessage: AppStrings.idleGreeting,
+      soundLevel: 0,
+      backgroundActive: true,
+      clearPending: true,
+      chatHistory: [],
+    ));
+
+    await ttsService.speak('Acknowledged.');
+    _resumeWakeWordMode();
+  }
+
+  // ── Wake-word mode ────────────────────────────────────────────────────────
+
+  Future<void> startWakeWordMode() async {
+    if (isClosed) {
+      return;
+    }
+    if (state.status == JarvisStatus.processing ||
+        state.status == JarvisStatus.speaking) {
+      return;
+    }
 
     final granted = await speechService.initialize();
     if (!granted) {
       emit(state.copyWith(
         status: JarvisStatus.error,
-        statusMessage: 'Microphone access denied, sir.',
+        statusMessage: 'Microphone access denied.',
+        backgroundActive: false,
       ));
       return;
     }
+
+    final wakeWord = await _getWakeWord();
+
+    emit(state.copyWith(
+      status: JarvisStatus.idle,
+      statusMessage: AppStrings.idleGreeting,
+      backgroundActive: true,
+      soundLevel: 0,
+      clearPending: true,
+    ));
+
+    await speechService.startContinuousListening(
+      wakeWord: wakeWord,
+      onWakeWordDetected: _onWakeWordDetected,
+    );
+  }
+
+  Future<void> _resumeWakeWordMode() async {
+    if (isClosed) {
+      return;
+    }
+    await startWakeWordMode();
+  }
+
+  // Starts the wake-word listener without changing state — used during
+  // processing/speaking so Nova can still be re-invoked to interrupt.
+  Future<void> _armWakeWordListener() async {
+    if (isClosed) {
+      return;
+    }
+    final granted = await speechService.initialize();
+    if (!granted) {
+      return;
+    }
+    await speechService.startContinuousListening(
+      wakeWord: await _getWakeWord(),
+      onWakeWordDetected: _onWakeWordDetected,
+    );
+  }
+
+  Future<String> _getWakeWord() async {
+    final p = await SharedPreferences.getInstance();
+    final stored = p.getString('behavior_wake_word')?.trim() ?? '';
+    return stored.isNotEmpty ? stored : AppStrings.wakeWord;
+  }
+
+  Future<void> _onWakeWordDetected(String utterance) async {
+    if (isClosed) {
+      return;
+    }
+
+    // If Jarvis is mid-task, cancel everything before handling the new call.
+    _stopProcessingMessages();
+    _pollingTimer?.cancel();
+    _pollingTimer = null;
+    ++_cmdGen;
+
+    await ttsService.stop();
+    await speechService.cancel();
+    await Future.delayed(const Duration(milliseconds: 200));
+
+    final wakeWord = await _getWakeWord();
+    final lower = utterance.toLowerCase();
+    final idx = lower.indexOf(wakeWord);
+    final trailing =
+        idx >= 0 ? utterance.substring(idx + wakeWord.length).trim() : '';
+
+    if (trailing.isEmpty) {
+      await _startCommandListening();
+      return;
+    }
+
+    if (_isStopCommand(trailing)) {
+      await _stopEverything();
+      return;
+    }
+
+    await _processCommand(trailing);
+  }
+
+  // ── Listening (manual / command-capture) ─────────────────────────────────
+  Future<void> _startCommandListening() async {
+    if (isClosed) {
+      return;
+    }
+
+    await ttsService.stop();
+    await Future.delayed(const Duration(milliseconds: 200));
 
     emit(state.copyWith(
       status: JarvisStatus.listening,
@@ -58,19 +198,42 @@ class JarvisCubit extends Cubit<JarvisState> {
 
     await speechService.startListening(
       onResult: _handleVoiceResult,
-      onSoundLevel: (level) =>
-          emit(state.copyWith(soundLevel: level.clamp(0, 10))),
+      onSoundLevel: (level) {
+        if (!isClosed && state.status == JarvisStatus.listening) {
+          emit(state.copyWith(soundLevel: level.clamp(0, 10)));
+        }
+      },
     );
+  }
+
+  Future<void> startListening() async {
+    if (state.status == JarvisStatus.listening) {
+      return;
+    }
+    // Blocked while Nova is busy — wake word is the only interrupt path.
+    if (state.status == JarvisStatus.processing ||
+        state.status == JarvisStatus.speaking) {
+      return;
+    }
+
+    await speechService.stopContinuousListening();
+
+    final granted = await speechService.initialize();
+    if (!granted) {
+      emit(state.copyWith(
+        status: JarvisStatus.error,
+        statusMessage: 'Microphone access denied.',
+      ));
+      return;
+    }
+
+    await _startCommandListening();
   }
 
   Future<void> stopListening() async {
     await speechService.stopListening();
     if (state.status == JarvisStatus.listening) {
-      emit(state.copyWith(
-        status: JarvisStatus.idle,
-        statusMessage: AppStrings.idleGreeting,
-        soundLevel: 0,
-      ));
+      await _resumeWakeWordMode();
     }
   }
 
@@ -83,107 +246,250 @@ class JarvisCubit extends Cubit<JarvisState> {
     }
   }
 
-  // ── Command processing ───────────────────────────────────────────────────
+  // ── Command processing ────────────────────────────────────────────────────
 
   Future<void> _handleVoiceResult(String words) async {
-    if (words.trim().isEmpty) return;
+    if (words.trim().isEmpty) {
+      await stopListening();
+      return;
+    }
     await speechService.stopListening();
+
+    if (_isStopCommand(words)) {
+      await _stopEverything();
+      return;
+    }
+
     await _processCommand(words);
   }
 
   Future<void> sendTextCommand(String command) async {
-    if (command.trim().isEmpty) return;
+    if (command.trim().isEmpty) {
+      return;
+    }
+    if (state.status == JarvisStatus.processing ||
+        state.status == JarvisStatus.speaking) {
+      // Allow interrupting with text if needed? For now just skip.
+      return;
+    }
+
+    await speechService.stopContinuousListening();
+
+    if (_isStopCommand(command)) {
+      await _stopEverything();
+      return;
+    }
+
     await _processCommand(command.trim());
   }
 
+  void clearChatHistory() {
+    emit(state.copyWith(chatHistory: []));
+  }
+
   Future<void> _processCommand(String command) async {
+    final generation = ++_cmdGen;
+
     final p = await SharedPreferences.getInstance();
     final processingInterval = p.getInt('behavior_processing_interval') ?? 8;
     final pollingInterval = p.getInt('behavior_polling_interval') ?? 5;
     final speakProcessing = p.getBool('behavior_speak_processing') ?? true;
-    final autoListen = p.getBool('behavior_auto_listen') ?? false;
+
+    // Default to true for voice commands to keep the loop active
+    final autoListen = p.getBool('behavior_auto_listen') ?? true;
+
+    // Add user message to history
+    final updatedHistory = List<ChatMessage>.from(state.chatHistory)
+      ..add(ChatMessage(role: ChatRole.user, text: command));
 
     emit(state.copyWith(
       status: JarvisStatus.processing,
       statusMessage: AppStrings.thinkingPrompt,
       lastCommand: command,
       clearPending: true,
+      backgroundActive: false,
+      chatHistory: updatedHistory,
     ));
 
     _startProcessingMessages(
         intervalSecs: processingInterval, shouldSpeak: speakProcessing);
 
-    final result = await repository.sendCommand(command);
-    _stopProcessingMessages();
+    await _armWakeWordListener();
 
-    if (result.jobId != null && !result.success) {
-      _startPolling(result.jobId!, intervalSecs: pollingInterval,
-          autoListen: autoListen);
-    } else {
-      await _handleResponse(result, autoListen: autoListen);
+    try {
+      final result = await repository.sendCommand(command).timeout(
+        const Duration(seconds: 45),
+        onTimeout: () => JarvisResponse.timeout(),
+      );
+      _stopProcessingMessages();
+
+      if (_cmdGen != generation || isClosed) {
+        return;
+      }
+
+      if (result.jobId != null) {
+        _startPolling(result.jobId!,
+            intervalSecs: pollingInterval, autoListen: autoListen);
+      } else {
+        await _handleResponse(result, autoListen: autoListen);
+      }
+    } catch (e) {
+      _stopProcessingMessages();
+      if (_cmdGen == generation && !isClosed) {
+        emit(state.copyWith(
+          status: JarvisStatus.error,
+          statusMessage: AppStrings.errorMessage,
+        ));
+        await _resumeWakeWordMode();
+      }
     }
   }
 
-  // ── Response routing ─────────────────────────────────────────────────────
+  // ── Response routing ──────────────────────────────────────────────────────
 
   Future<void> _handleResponse(JarvisResponse response,
       {bool autoListen = false}) async {
-    // Speak the voice message regardless of type (if provided)
-    if (response.spokenMessage != null && response.spokenMessage!.isNotEmpty) {
-      await _speak(response.spokenMessage!, autoListen: autoListen);
+    // Add Jarvis response to history if it has a message
+    final respText = response.displayMessage ?? response.spokenMessage;
+    if (respText != null && respText.isNotEmpty) {
+      final updatedHistory = List<ChatMessage>.from(state.chatHistory)
+        ..add(ChatMessage(role: ChatRole.jarvis, text: respText));
+      emit(state.copyWith(chatHistory: updatedHistory));
     }
 
-    // For non-voice types, also emit pendingResponse so the UI can react
     if (response.type != JarvisResponseType.voice) {
-      emit(state.copyWith(
-        pendingResponse: response,
-        lastResponse: response.displayMessage ?? response.spokenMessage ?? '',
-      ));
-    } else if (!response.success) {
+      MediaCache.instance.store(response);
+      final slim = MediaCache.stripped(response);
+
+      if (response.spokenMessage != null && response.spokenMessage!.isNotEmpty) {
+        await _speak(response.spokenMessage!, autoListen: autoListen);
+      } else {
+        emit(state.copyWith(
+          status: JarvisStatus.idle,
+          statusMessage: AppStrings.idleGreeting,
+          pendingResponse: slim,
+          lastResponse: response.displayMessage ?? '',
+        ));
+        await _armWakeWordListener();
+      }
+      return;
+    }
+
+    if (!response.success) {
       emit(state.copyWith(
         status: JarvisStatus.error,
         statusMessage: response.spokenMessage ?? AppStrings.errorMessage,
       ));
+      await _resumeWakeWordMode();
+      return;
+    }
+
+    if (response.spokenMessage != null && response.spokenMessage!.isNotEmpty) {
+      await _speak(response.spokenMessage!, autoListen: autoListen);
+    } else {
+      await _resumeWakeWordMode();
     }
   }
 
   Future<void> _speak(String text, {bool autoListen = false}) async {
     _pollingTimer?.cancel();
+    _stopProcessingMessages();
+
+    // Ensure any previous speech is fully terminated
+    await ttsService.stop();
+    await Future.delayed(const Duration(milliseconds: 150));
+
+    // Stop all STT before starting TTS to avoid resource contention
+    await speechService.stopContinuousListening();
+    await Future.delayed(const Duration(milliseconds: 250));
+
     emit(state.copyWith(
       status: JarvisStatus.speaking,
       statusMessage: AppStrings.speakingPrompt,
       lastResponse: text,
     ));
 
-    await ttsService.speak(text, onComplete: () {
-      if (isClosed) return;
-      if (autoListen) {
-        startListening();
-      } else {
-        emit(state.copyWith(
-          status: JarvisStatus.idle,
-          statusMessage: AppStrings.idleGreeting,
-          soundLevel: 0,
-        ));
+    final generation = _cmdGen;
+    bool completed = false;
+
+    void onSpeechDone() {
+      if (completed || _cmdGen != generation || isClosed) {
+        return;
       }
+      completed = true;
+      _onSpeechDone(autoListen);
+    }
+
+    // Dynamic timeout: approx 1 second per 10 characters, minimum 15 seconds.
+    final timeoutSecs = (text.length / 10).clamp(15.0, 120.0).toInt();
+    final safetyTimer = Timer(Duration(seconds: timeoutSecs), onSpeechDone);
+
+    await ttsService.speak(text, onComplete: () {
+      safetyTimer.cancel();
+      onSpeechDone();
     });
+  }
+
+  Future<void> _onSpeechDone(bool autoListen) async {
+    if (isClosed) {
+      return;
+    }
+
+    // Explicitly transition out of speaking mode.
+    // This allows guards in startListening() and startWakeWordMode() to pass.
+    emit(state.copyWith(
+      status: JarvisStatus.idle,
+      statusMessage: AppStrings.idleGreeting,
+    ));
+
+    // Release resources and wait a moment for hardware cleanup
+    await Future.delayed(const Duration(milliseconds: 300));
+
+    if (autoListen) {
+      await startListening();
+    } else {
+      await _resumeWakeWordMode();
+    }
   }
 
   void consumePendingResponse() {
     emit(state.copyWith(clearPending: true));
+    _resumeWakeWordMode();
   }
 
-  // ── Processing messages ──────────────────────────────────────────────────
+  // ── Processing messages ───────────────────────────────────────────────────
 
   void _startProcessingMessages(
       {required int intervalSecs, required bool shouldSpeak}) {
     _processingMessageIndex = 0;
-    _processingTimer =
-        Timer.periodic(Duration(seconds: intervalSecs), (_) {
+    _processingTimer = Timer.periodic(Duration(seconds: intervalSecs), (_) async {
       final msg = AppStrings.processingMessages[
           _processingMessageIndex++ % AppStrings.processingMessages.length];
+
+      if (isClosed) return;
       emit(state.copyWith(statusMessage: msg));
-      if (shouldSpeak) ttsService.speak(msg);
+
+      if (shouldSpeak) {
+        // Double check status before starting TTS
+        if (state.status != JarvisStatus.processing) return;
+
+        // Stop STT before speaking — Android can't hold both audio sessions.
+        await speechService.stopContinuousListening();
+        await Future.delayed(const Duration(milliseconds: 250));
+
+        // Final check before speaking
+        if (state.status != JarvisStatus.processing) {
+          _armWakeWordListener();
+          return;
+        }
+
+        await ttsService.speak(msg, onComplete: () async {
+          if (!isClosed && state.status == JarvisStatus.processing) {
+             await Future.delayed(const Duration(milliseconds: 250));
+             _armWakeWordListener();
+          }
+        });
+      }
     });
   }
 
@@ -192,12 +498,11 @@ class JarvisCubit extends Cubit<JarvisState> {
     _processingTimer = null;
   }
 
-  // ── Polling ──────────────────────────────────────────────────────────────
+  // ── Polling ───────────────────────────────────────────────────────────────
 
   void _startPolling(String jobId,
       {required int intervalSecs, required bool autoListen}) {
-    _pollingTimer =
-        Timer.periodic(Duration(seconds: intervalSecs), (_) async {
+    _pollingTimer = Timer.periodic(Duration(seconds: intervalSecs), (_) async {
       final result = await repository.pollJobStatus(jobId);
       if (result != null) {
         _pollingTimer?.cancel();
