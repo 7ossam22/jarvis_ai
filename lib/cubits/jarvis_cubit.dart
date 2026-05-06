@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../core/constants/app_strings.dart';
+import '../services/bot_sound_service.dart';
 import '../services/speech_service.dart';
 import '../services/tts_service.dart';
 import '../logic/jarvis_response.dart';
@@ -13,6 +14,7 @@ class JarvisCubit extends Cubit<JarvisState> {
   final N8nRepository repository;
   final SpeechService speechService;
   final TtsService ttsService;
+  final BotSoundService botSoundService;
 
   Timer? _processingTimer;
   Timer? _pollingTimer;
@@ -33,6 +35,7 @@ class JarvisCubit extends Cubit<JarvisState> {
     required this.repository,
     required this.speechService,
     required this.ttsService,
+    required this.botSoundService,
   }) : super(const JarvisState()) {
     _applyTtsSettings();
   }
@@ -44,6 +47,7 @@ class JarvisCubit extends Cubit<JarvisState> {
       pitch: p.getDouble('tts_pitch') ?? 1.0,
       volume: p.getDouble('tts_volume') ?? 1.0,
       language: p.getString('tts_language') ?? 'en-US',
+      botVoiceMode: p.getBool('voice_bot_mode') ?? false,
     );
   }
 
@@ -342,8 +346,16 @@ class JarvisCubit extends Cubit<JarvisState> {
       lastResponse: text,
     ));
 
+    final p = await SharedPreferences.getInstance();
+    final botMode = p.getBool('voice_bot_mode') ?? false;
+
+    if (botMode) await botSoundService.playStartBeep();
+
     await ttsService.speak(text, onComplete: () {
       if (isClosed) return;
+      // Fire end-chime asynchronously — the duration (≈180 ms) means it
+      // finishes well before the wake-word listener becomes active.
+      if (botMode) botSoundService.playEndChime();
       if (autoListen) {
         startListening();
       } else {
