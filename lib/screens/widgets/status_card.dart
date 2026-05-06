@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_animate/flutter_animate.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../core/constants/app_colors.dart';
 import '../../cubits/jarvis_state.dart';
@@ -12,78 +11,58 @@ class StatusCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 24),
-      padding: const EdgeInsets.all(20),
+      width: double.infinity,
+      padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: AppColors.cardSurface.withValues(alpha: 0.8),
-        borderRadius: BorderRadius.circular(4),
-        border: Border.all(
-          color: _borderColor.withValues(alpha: 0.4),
-          width: 1,
-        ),
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.borderLight, width: 1.5),
         boxShadow: [
           BoxShadow(
-            color: _borderColor.withValues(alpha: 0.1),
+            color: Colors.black.withValues(alpha: 0.03),
             blurRadius: 20,
-            spreadRadius: 2,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Status badge
           Row(
             children: [
-              Container(
-                width: 6,
-                height: 6,
-                decoration: BoxDecoration(
-                  color: _borderColor,
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: _borderColor.withValues(alpha: 0.8),
-                      blurRadius: 6,
-                    ),
-                  ],
-                ),
-              )
-                  .animate(onPlay: (c) => c.repeat())
-                  .fadeIn(duration: 600.ms)
-                  .then()
-                  .fadeOut(duration: 600.ms),
-              const SizedBox(width: 8),
               Text(
                 _statusLabel.toUpperCase(),
-                style: GoogleFonts.rajdhani(
-                  color: _borderColor,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: 3,
+                style: GoogleFonts.inter(
+                  color: _statusColor,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 1.2,
                 ),
               ),
+              const Spacer(),
+              Icon(Icons.more_horiz_rounded, size: 16, color: AppColors.textDisabled),
             ],
           ),
           const SizedBox(height: 12),
-
-          // Status message
           Text(
             state.statusMessage,
-            style: GoogleFonts.rajdhani(
+            style: GoogleFonts.inter(
               color: AppColors.textPrimary,
-              fontSize: 16,
-              letterSpacing: 1.5,
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+              height: 1.3,
             ),
           ),
-
-          if (state.lastCommand.isNotEmpty) ...[
+          if (state.lastCommand.isNotEmpty || state.lastResponse.isNotEmpty) ...[
+            const SizedBox(height: 24),
+            const Divider(color: AppColors.borderLight),
             const SizedBox(height: 16),
-            _infoRow('COMMAND', state.lastCommand),
-          ],
-          if (state.lastResponse.isNotEmpty) ...[
-            const SizedBox(height: 8),
-            _infoRow('RESPONSE', state.lastResponse),
+            if (state.lastCommand.isNotEmpty)
+              _infoRow('INPUT_COMMAND', state.lastCommand),
+            if (state.lastCommand.isNotEmpty && state.lastResponse.isNotEmpty)
+              const SizedBox(height: 16),
+            if (state.lastResponse.isNotEmpty)
+              _infoRow('OUTPUT_RESPONSE', state.lastResponse),
           ],
         ],
       ),
@@ -96,41 +75,42 @@ class StatusCard extends StatelessWidget {
       children: [
         Text(
           label,
-          style: GoogleFonts.rajdhani(
-            color: AppColors.textDim,
-            fontSize: 10,
-            letterSpacing: 2.5,
-            fontWeight: FontWeight.w600,
+          style: GoogleFonts.inter(
+            color: AppColors.textMuted,
+            fontSize: 9,
+            letterSpacing: 1.5,
+            fontWeight: FontWeight.w700,
           ),
         ),
-        const SizedBox(height: 4),
+        const SizedBox(height: 6),
         Text(
           value,
-          style: GoogleFonts.rajdhani(
+          style: GoogleFonts.inter(
             color: AppColors.textSecondary,
             fontSize: 14,
-            letterSpacing: 1,
+            height: 1.4,
+            fontWeight: FontWeight.w500,
           ),
-          maxLines: 3,
+          maxLines: 4,
           overflow: TextOverflow.ellipsis,
         ),
       ],
     );
   }
 
-  Color get _borderColor => switch (state.status) {
-        JarvisStatus.idle => AppColors.arcReactorCyan,
-        JarvisStatus.listening => AppColors.ironGold,
-        JarvisStatus.processing => AppColors.arcReactorCyan,
-        JarvisStatus.speaking => AppColors.ironGold,
-        JarvisStatus.error => AppColors.ironRed,
+  Color get _statusColor => switch (state.status) {
+        JarvisStatus.idle => AppColors.textDisabled,
+        JarvisStatus.listening => AppColors.warning,
+        JarvisStatus.processing => AppColors.primary,
+        JarvisStatus.speaking => AppColors.sky500,
+        JarvisStatus.error => AppColors.error,
       };
 
   String get _statusLabel => switch (state.status) {
-        JarvisStatus.idle => 'STANDBY',
-        JarvisStatus.listening => 'LISTENING',
-        JarvisStatus.processing => 'PROCESSING',
-        JarvisStatus.speaking => 'SPEAKING',
-        JarvisStatus.error => 'ERROR',
+        JarvisStatus.idle => 'Standby',
+        JarvisStatus.listening => 'Capturing Audio',
+        JarvisStatus.processing => 'Analyzing Request',
+        JarvisStatus.speaking => 'Transmitting Output',
+        JarvisStatus.error => 'System Error',
       };
 }

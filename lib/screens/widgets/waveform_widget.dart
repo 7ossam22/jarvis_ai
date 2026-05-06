@@ -11,7 +11,7 @@ class WaveformWidget extends StatefulWidget {
     super.key,
     required this.active,
     this.soundLevel = 0,
-    this.color = AppColors.arcReactorCyan,
+    this.color = AppColors.primary,
   });
 
   @override
@@ -24,7 +24,7 @@ class _WaveformWidgetState extends State<WaveformWidget>
   final Random _rng = Random();
   late List<double> _heights;
 
-  static const _barCount = 32;
+  static const _barCount = 40;
 
   @override
   void initState() {
@@ -38,23 +38,27 @@ class _WaveformWidgetState extends State<WaveformWidget>
 
   void _updateBars() {
     if (!widget.active) {
-      setState(() {
-        _heights = _heights.map((h) => h * 0.8).toList();
-      });
+      if (mounted) {
+        setState(() {
+          _heights = _heights.map((h) => h * 0.7).toList();
+        });
+      }
       return;
     }
-    setState(() {
-      final base = (widget.soundLevel / 10).clamp(0.1, 1.0);
-      _heights = List.generate(
-        _barCount,
-        (i) {
-          final center = _barCount / 2;
-          final distFactor = 1 - (i - center).abs() / center * 0.5;
-          return (base * distFactor * (0.3 + _rng.nextDouble() * 0.7))
-              .clamp(0.05, 1.0);
-        },
-      );
-    });
+    if (mounted) {
+      setState(() {
+        final base = (widget.soundLevel / 10).clamp(0.1, 1.0);
+        _heights = List.generate(
+          _barCount,
+          (i) {
+            final center = _barCount / 2;
+            final distFactor = 1 - (i - center).abs() / center;
+            return (base * distFactor * (0.2 + _rng.nextDouble() * 0.8))
+                .clamp(0.02, 1.0);
+          },
+        );
+      });
+    }
   }
 
   @override
@@ -66,19 +70,19 @@ class _WaveformWidgetState extends State<WaveformWidget>
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 40,
+      height: 60,
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         crossAxisAlignment: CrossAxisAlignment.center,
         children: List.generate(_barCount, (i) {
           return AnimatedContainer(
-            duration: const Duration(milliseconds: 80),
-            margin: const EdgeInsets.symmetric(horizontal: 1),
+            duration: const Duration(milliseconds: 100),
+            margin: const EdgeInsets.symmetric(horizontal: 1.5),
             width: 3,
-            height: 4 + (_heights[i] * 36),
+            height: 4 + (_heights[i] * 56),
             decoration: BoxDecoration(
-              color: widget.color.withValues(alpha: 0.6 + _heights[i] * 0.4),
-              borderRadius: BorderRadius.circular(2),
+              color: widget.color.withValues(alpha: 0.15 + _heights[i] * 0.85),
+              borderRadius: BorderRadius.circular(4),
             ),
           );
         }),

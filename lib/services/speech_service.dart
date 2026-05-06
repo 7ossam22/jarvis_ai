@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:speech_to_text/speech_to_text.dart';
 
 class SpeechService {
@@ -23,7 +24,8 @@ class SpeechService {
   // When the continuous loop is active and STT stops for any reason
   // (timeout, pause, or error) — restart it automatically.
   void _handleStatus(String status) {
-    if (_continuousMode && (status == 'notListening' || status == 'done')) {
+    if (_continuousMode &&
+        (status == 'notListening' || status == 'done' || status == 'error')) {
       Future.delayed(const Duration(milliseconds: 400), () {
         if (_continuousMode && !_stt.isListening) {
           _doWakeWordListen();
@@ -58,23 +60,27 @@ class SpeechService {
 
   Future<void> _doWakeWordListen() async {
     if (!_continuousMode || !_initialized || _stt.isListening) return;
-    await _stt.listen(
-      onResult: (result) {
-        if (!_continuousMode) return;
-        // Check both partial and final results so detection is snappy.
-        if (result.recognizedWords.toLowerCase().contains(_wakeWord)) {
-          _continuousMode = false;
-          final cb = _onWakeWordDetected;
-          _onWakeWordDetected = null;
-          cb?.call(result.recognizedWords);
-        }
-      },
-      listenOptions: SpeechListenOptions(cancelOnError: false),
-      // Short cycles so _handleStatus restarts quickly.
-      listenFor: const Duration(seconds: 8),
-      pauseFor: const Duration(seconds: 2),
-      onSoundLevelChange: _continuousSoundLevel,
-    );
+    try {
+      await _stt.listen(
+        onResult: (result) {
+          if (!_continuousMode) return;
+          // Check both partial and final results so detection is snappy.
+          if (result.recognizedWords.toLowerCase().contains(_wakeWord)) {
+            _continuousMode = false;
+            final cb = _onWakeWordDetected;
+            _onWakeWordDetected = null;
+            cb?.call(result.recognizedWords);
+          }
+        },
+        listenOptions: SpeechListenOptions(cancelOnError: false),
+        // Short cycles so _handleStatus restarts quickly.
+        listenFor: const Duration(seconds: 8),
+        pauseFor: const Duration(seconds: 2),
+        onSoundLevelChange: _continuousSoundLevel,
+      );
+    } catch (_) {
+      // If listen() fails immediately, _handleStatus will try to restart it.
+    }
   }
 
   Future<void> stopContinuousListening() async {
@@ -87,16 +93,21 @@ class SpeechService {
 
   Future<void> startListening({
     required void Function(String words) onResult,
+    required VoidCallback onDone,
     void Function(double level)? onSoundLevel,
   }) async {
     if (!_initialized) await initialize();
     await _stt.listen(
       onResult: (result) {
-        if (result.finalResult && result.recognizedWords.isNotEmpty) {
-          onResult(result.recognizedWords);
+        if (result.finalResult) {
+          if (result.recognizedWords.isNotEmpty) {
+            onResult(result.recognizedWords);
+          } else {
+            onDone();
+          }
         }
       },
-      listenOptions: SpeechListenOptions(cancelOnError: false),
+      listenOptions: SpeechListenOptions(cancelOnError: true),
       listenFor: const Duration(seconds: 30),
       pauseFor: const Duration(seconds: 3),
       onSoundLevelChange: onSoundLevel,

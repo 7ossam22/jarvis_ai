@@ -1,4 +1,3 @@
-import 'dart:typed_data';
 import 'jarvis_response.dart';
 
 /// Holds the last media response out-of-band so the raw bytes never enter

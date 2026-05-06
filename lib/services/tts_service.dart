@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:flutter_tts/flutter_tts.dart';
 
@@ -6,9 +7,25 @@ class TtsService {
   bool _initialized = false;
   bool _botMode = false;
 
+  Completer<void>? _speechCompleter;
+
   Future<void> _ensureInit() async {
     if (_initialized) return;
     _initialized = true;
+
+    _tts.setCompletionHandler(() {
+      if (_speechCompleter != null && !_speechCompleter!.isCompleted) {
+        _speechCompleter!.complete();
+      }
+      _speechCompleter = null;
+    });
+
+    _tts.setErrorHandler((msg) {
+      if (_speechCompleter != null && !_speechCompleter!.isCompleted) {
+        _speechCompleter!.completeError(msg);
+      }
+      _speechCompleter = null;
+    });
 
     if (Platform.isAndroid) {
       // Prefer Google TTS — noticeably more natural than OEM fallbacks.
@@ -44,20 +61,33 @@ class TtsService {
     }
   }
 
-  Future<void> speak(String text, {void Function()? onComplete}) async {
+  Future<void> speak(String text) async {
     await _ensureInit();
-    if (onComplete != null) {
-      _tts.setCompletionHandler(onComplete);
+
+    // If already speaking, stop and complete the previous future.
+    if (_speechCompleter != null && !_speechCompleter!.isCompleted) {
+      await stop();
     }
+
+    _speechCompleter = Completer<void>();
     final processed = _preprocess(text);
     // On Android, wrap in SSML prosody for a deeper, more electronic cadence.
     final utterance =
         (_botMode && Platform.isAndroid) ? _wrapSsml(processed) : processed;
+
     await _tts.speak(utterance);
+    return _speechCompleter!.future;
   }
 
-  Future<void> stop() async => _tts.stop();
-  Future<void> stopIfSpeaking() async => _tts.stop();
+  Future<void> stop() async {
+    await _tts.stop();
+    if (_speechCompleter != null && !_speechCompleter!.isCompleted) {
+      _speechCompleter!.complete();
+    }
+    _speechCompleter = null;
+  }
+
+  Future<void> stopIfSpeaking() async => stop();
 
   // ── SSML (Android / Google TTS) ───────────────────────────────────────────
 

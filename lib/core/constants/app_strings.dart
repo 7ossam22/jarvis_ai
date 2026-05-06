@@ -1,6 +1,6 @@
 class AppStrings {
-  static const appName = 'J.A.R.V.I.S';
-  static const appSubtitle = 'Just A Rather Very Intelligent System';
+  static const appName = 'JARVIS';
+  static const appSubtitle = 'NovaTek Intelligence Engine';
 
   static const wakeWord = 'jarvis';
 

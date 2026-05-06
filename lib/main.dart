@@ -6,7 +6,6 @@ import 'core/di/service_locator.dart';
 import 'core/theme/app_theme.dart';
 import 'cubits/jarvis_cubit.dart';
 import 'screens/jarvis_screen.dart';
-import 'services/background_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -19,7 +18,6 @@ void main() async {
 
   await setupLocator();
   await _requestPermissions();
-  await initializeBackgroundService();
 
   runApp(const JarvisApp());
 }

@@ -77,9 +77,8 @@ class JarvisCubit extends Cubit<JarvisState> {
     ));
 
     await Future.delayed(const Duration(milliseconds: 150));
-    await ttsService.speak('Got it.', onComplete: () {
-      if (!isClosed) _resumeWakeWordMode();
-    });
+    await ttsService.speak('Got it.');
+    if (!isClosed) _resumeWakeWordMode();
   }
 
   // ── Wake-word mode ────────────────────────────────────────────────────────
@@ -187,6 +186,11 @@ class JarvisCubit extends Cubit<JarvisState> {
     ));
     await speechService.startListening(
       onResult: _handleVoiceResult,
+      onDone: () async {
+        if (!isClosed && state.status == JarvisStatus.listening) {
+          await _resumeWakeWordMode();
+        }
+      },
       onSoundLevel: (level) =>
           emit(state.copyWith(soundLevel: level.clamp(0, 10))),
     );
@@ -196,7 +200,9 @@ class JarvisCubit extends Cubit<JarvisState> {
     if (state.status == JarvisStatus.listening) return;
     // Blocked while Jarvis is busy — wake word is the only interrupt path.
     if (state.status == JarvisStatus.processing ||
-        state.status == JarvisStatus.speaking) return;
+        state.status == JarvisStatus.speaking) {
+      return;
+    }
 
     await speechService.stopContinuousListening();
 
@@ -244,10 +250,14 @@ class JarvisCubit extends Cubit<JarvisState> {
   }
 
   Future<void> sendTextCommand(String command) async {
-    if (command.trim().isEmpty) return;
+    if (command.trim().isEmpty) {
+      return;
+    }
     // Blocked while Jarvis is busy — wake word is the only interrupt path.
     if (state.status == JarvisStatus.processing ||
-        state.status == JarvisStatus.speaking) return;
+        state.status == JarvisStatus.speaking) {
+      return;
+    }
 
     await speechService.stopContinuousListening();
 
@@ -340,6 +350,7 @@ class JarvisCubit extends Cubit<JarvisState> {
 
   Future<void> _speak(String text, {bool autoListen = false}) async {
     _pollingTimer?.cancel();
+    _pollingTimer = null;
     emit(state.copyWith(
       status: JarvisStatus.speaking,
       statusMessage: AppStrings.speakingPrompt,
@@ -351,17 +362,19 @@ class JarvisCubit extends Cubit<JarvisState> {
 
     if (botMode) await botSoundService.playStartBeep();
 
-    await ttsService.speak(text, onComplete: () {
-      if (isClosed) return;
-      // Fire end-chime asynchronously — the duration (≈180 ms) means it
-      // finishes well before the wake-word listener becomes active.
-      if (botMode) botSoundService.playEndChime();
-      if (autoListen) {
-        startListening();
-      } else {
-        _resumeWakeWordMode();
-      }
-    });
+    await ttsService.speak(text);
+
+    if (isClosed) return;
+
+    // Fire end-chime asynchronously — the duration (≈180 ms) means it
+    // finishes well before the wake-word listener becomes active.
+    if (botMode) botSoundService.playEndChime();
+
+    if (autoListen) {
+      startListening();
+    } else {
+      _resumeWakeWordMode();
+    }
   }
 
   void consumePendingResponse() {
@@ -373,17 +386,24 @@ class JarvisCubit extends Cubit<JarvisState> {
 
   void _startProcessingMessages(
       {required int intervalSecs, required bool shouldSpeak}) {
+    final generation = _cmdGen;
     _processingMessageIndex = 0;
     _processingTimer = Timer.periodic(Duration(seconds: intervalSecs), (_) async {
+      if (generation != _cmdGen || isClosed) {
+        _stopProcessingMessages();
+        return;
+      }
+
       final msg = AppStrings.processingMessages[
           _processingMessageIndex++ % AppStrings.processingMessages.length];
       emit(state.copyWith(statusMessage: msg));
       if (shouldSpeak) {
         // Stop STT before speaking — Android can't hold both audio sessions.
         await speechService.stopContinuousListening();
-        await ttsService.speak(msg, onComplete: () {
-          if (!isClosed) _armWakeWordListener();
-        });
+        await ttsService.speak(msg);
+        if (!isClosed && generation == _cmdGen) {
+          _armWakeWordListener();
+        }
       }
     });
   }
@@ -397,10 +417,18 @@ class JarvisCubit extends Cubit<JarvisState> {
 
   void _startPolling(String jobId,
       {required int intervalSecs, required bool autoListen}) {
+    final generation = _cmdGen;
     _pollingTimer = Timer.periodic(Duration(seconds: intervalSecs), (_) async {
-      final result = await repository.pollJobStatus(jobId);
-      if (result != null) {
+      if (generation != _cmdGen || isClosed) {
         _pollingTimer?.cancel();
+        _pollingTimer = null;
+        return;
+      }
+
+      final result = await repository.pollJobStatus(jobId);
+      if (result != null && generation == _cmdGen) {
+        _pollingTimer?.cancel();
+        _pollingTimer = null;
         _stopProcessingMessages();
         await _handleResponse(result, autoListen: autoListen);
       }

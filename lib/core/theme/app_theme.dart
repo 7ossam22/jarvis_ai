@@ -3,90 +3,114 @@ import 'package:google_fonts/google_fonts.dart';
 import '../constants/app_colors.dart';
 
 class AppTheme {
-  static ThemeData get dark => ThemeData(
-        brightness: Brightness.dark,
+  static ThemeData get light => ThemeData(
+        brightness: Brightness.light,
         scaffoldBackgroundColor: AppColors.background,
-        colorScheme: const ColorScheme.dark(
-          primary: AppColors.arcReactorCyan,
-          secondary: AppColors.ironGold,
-          error: AppColors.ironRed,
+        colorScheme: const ColorScheme.light(
+          primary: AppColors.primary,
+          secondary: AppColors.sky500,
+          error: AppColors.error,
           surface: AppColors.surface,
+          onSurface: AppColors.textPrimary,
         ),
-        textTheme: GoogleFonts.rajdhaniTextTheme(
+        textTheme: GoogleFonts.interTextTheme(
           const TextTheme(
             displayLarge: TextStyle(
               color: AppColors.textPrimary,
-              fontSize: 48,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 8,
+              fontSize: 32,
+              fontWeight: FontWeight.w800,
+              letterSpacing: -0.5,
             ),
             displayMedium: TextStyle(
-              color: AppColors.arcReactorCyan,
-              fontSize: 32,
-              fontWeight: FontWeight.w600,
-              letterSpacing: 6,
+              color: AppColors.textPrimary,
+              fontSize: 24,
+              fontWeight: FontWeight.w700,
+              letterSpacing: -0.5,
             ),
             titleLarge: TextStyle(
               color: AppColors.textPrimary,
-              fontSize: 20,
+              fontSize: 18,
               fontWeight: FontWeight.w600,
-              letterSpacing: 3,
             ),
             bodyLarge: TextStyle(
-              color: AppColors.textPrimary,
+              color: AppColors.textSecondary,
               fontSize: 16,
-              letterSpacing: 1.5,
+              height: 1.5,
             ),
             bodyMedium: TextStyle(
               color: AppColors.textSecondary,
               fontSize: 14,
-              letterSpacing: 1,
+              height: 1.5,
+            ),
+            labelLarge: TextStyle(
+              color: AppColors.textPrimary,
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 0.1,
             ),
             labelSmall: TextStyle(
-              color: AppColors.textDim,
+              color: AppColors.textMuted,
               fontSize: 11,
-              letterSpacing: 2,
+              fontWeight: FontWeight.w500,
+              letterSpacing: 0.5,
             ),
           ),
         ),
         appBarTheme: AppBarTheme(
-          backgroundColor: Colors.transparent,
+          backgroundColor: AppColors.surface,
           elevation: 0,
-          titleTextStyle: GoogleFonts.rajdhani(
-            color: AppColors.arcReactorCyan,
-            fontSize: 20,
-            fontWeight: FontWeight.w600,
-            letterSpacing: 4,
+          centerTitle: false,
+          iconTheme: const IconThemeData(color: AppColors.textPrimary),
+          titleTextStyle: GoogleFonts.inter(
+            color: AppColors.textPrimary,
+            fontSize: 16,
+            fontWeight: FontWeight.w700,
+          ),
+          shape: const Border(
+            bottom: BorderSide(color: AppColors.borderLight, width: 1),
+          ),
+        ),
+        cardTheme: CardTheme(
+          color: AppColors.surface,
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+            side: const BorderSide(color: AppColors.borderLight, width: 1.5),
           ),
         ),
         inputDecorationTheme: InputDecorationTheme(
           filled: true,
-          fillColor: AppColors.cardSurface,
+          fillColor: AppColors.hoverFill,
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(8),
-            borderSide: const BorderSide(color: AppColors.textDim),
+            borderSide: const BorderSide(color: AppColors.borderLight),
           ),
           enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(8),
-            borderSide: const BorderSide(color: AppColors.textDim),
+            borderSide: const BorderSide(color: AppColors.borderLight),
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(8),
-            borderSide: const BorderSide(color: AppColors.arcReactorCyan, width: 2),
+            borderSide: const BorderSide(color: AppColors.primary, width: 2),
           ),
-          labelStyle: const TextStyle(color: AppColors.textSecondary),
-          hintStyle: const TextStyle(color: AppColors.textDim),
+          labelStyle: const TextStyle(color: AppColors.textMuted),
+          hintStyle: const TextStyle(color: AppColors.textDisabled),
         ),
         elevatedButtonTheme: ElevatedButtonThemeData(
           style: ElevatedButton.styleFrom(
-            backgroundColor: AppColors.arcReactorCyan,
-            foregroundColor: AppColors.background,
+            backgroundColor: AppColors.primary,
+            foregroundColor: Colors.white,
+            elevation: 0,
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-            textStyle: GoogleFonts.rajdhani(
-              fontWeight: FontWeight.w700,
-              letterSpacing: 2,
+            textStyle: const TextStyle(
+              fontWeight: FontWeight.w600,
+              fontSize: 14,
             ),
           ),
         ),
       );
+
+  // Keep dark theme for fallback but base it on Slate 900 if we wanted a dark mode
+  static ThemeData get dark => light; 
 }
