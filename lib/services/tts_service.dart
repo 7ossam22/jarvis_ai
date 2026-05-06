@@ -4,6 +4,7 @@ import 'package:flutter_tts/flutter_tts.dart';
 class TtsService {
   final FlutterTts _tts = FlutterTts();
   bool _initialized = false;
+  bool _botMode = false;
 
   Future<void> _ensureInit() async {
     if (_initialized) return;
@@ -26,12 +27,21 @@ class TtsService {
     double pitch = 1.0,
     double volume = 1.0,
     String language = 'en-US',
+    bool botVoiceMode = false,
   }) async {
     await _ensureInit();
+    _botMode = botVoiceMode;
     await _tts.setLanguage(language);
-    await _tts.setSpeechRate(speechRate);
     await _tts.setVolume(volume);
-    await _tts.setPitch(pitch);
+
+    if (botVoiceMode) {
+      // Lower pitch and deliberate rate give a synthetic, robotic character.
+      await _tts.setSpeechRate(0.44);
+      await _tts.setPitch(0.72);
+    } else {
+      await _tts.setSpeechRate(speechRate);
+      await _tts.setPitch(pitch);
+    }
   }
 
   Future<void> speak(String text, {void Function()? onComplete}) async {
@@ -39,11 +49,20 @@ class TtsService {
     if (onComplete != null) {
       _tts.setCompletionHandler(onComplete);
     }
-    await _tts.speak(_preprocess(text));
+    final processed = _preprocess(text);
+    // On Android, wrap in SSML prosody for a deeper, more electronic cadence.
+    final utterance =
+        (_botMode && Platform.isAndroid) ? _wrapSsml(processed) : processed;
+    await _tts.speak(utterance);
   }
 
   Future<void> stop() async => _tts.stop();
   Future<void> stopIfSpeaking() async => _tts.stop();
+
+  // ── SSML (Android / Google TTS) ───────────────────────────────────────────
+
+  String _wrapSsml(String text) =>
+      '<speak><prosody pitch="low" rate="slow">$text</prosody></speak>';
 
   // ── Text preprocessing ────────────────────────────────────────────────────
 
@@ -78,6 +97,12 @@ class TtsService {
         // Collapse extra whitespace
         .replaceAll(RegExp(r' {2,}'), ' ')
         .trim();
+
+    if (_botMode) {
+      // In bot mode, ensure every sentence ends with a period so the engine
+      // inserts a distinct pause between them, reinforcing the mechanical feel.
+      t = t.replaceAll(RegExp(r'\.?\s{2,}'), '.  ');
+    }
 
     // Ensure the sentence ends with punctuation for a clean TTS stop.
     if (t.isNotEmpty && !'.!?'.contains(t[t.length - 1])) t += '.';
