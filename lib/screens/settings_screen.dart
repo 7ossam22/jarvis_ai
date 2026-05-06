@@ -284,6 +284,14 @@ class _SettingsViewState extends State<_SettingsView> {
                         },
                         onChanged: cubit.updateLanguage,
                       ),
+                      const SizedBox(height: 12),
+                      _toggleTile(
+                        label: 'Bot Voice Mode',
+                        subtitle:
+                            'Deep synthetic voice with electronic beep tones',
+                        value: state.botVoiceMode,
+                        onChanged: cubit.toggleBotVoiceMode,
+                      ),
                     ],
                   ),
                 ),
