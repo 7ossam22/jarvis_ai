@@ -24,6 +24,7 @@ class SettingsCubit extends Cubit<SettingsState> {
       autoListenAfterResponse: p.getBool('behavior_auto_listen') ?? false,
       speakProcessingMessages: p.getBool('behavior_speak_processing') ?? true,
       wakeWord: p.getString('behavior_wake_word') ?? 'jarvis',
+      botVoiceMode: p.getBool('voice_bot_mode') ?? false,
     ));
   }
 
@@ -40,6 +41,7 @@ class SettingsCubit extends Cubit<SettingsState> {
   void toggleSpeakProcessing(bool v) =>
       emit(state.copyWith(speakProcessingMessages: v));
   void updateWakeWord(String v) => emit(state.copyWith(wakeWord: v));
+  void toggleBotVoiceMode(bool v) => emit(state.copyWith(botVoiceMode: v));
 
   Future<void> save({
     required String baseUrl,
@@ -64,6 +66,7 @@ class SettingsCubit extends Cubit<SettingsState> {
     await p.setBool('behavior_auto_listen', state.autoListenAfterResponse);
     await p.setBool('behavior_speak_processing', state.speakProcessingMessages);
     await p.setString('behavior_wake_word', wakeWord.trim().toLowerCase());
+    await p.setBool('voice_bot_mode', state.botVoiceMode);
 
     emit(state.copyWith(
       n8nBaseUrl: baseUrl.trim(),
