@@ -20,6 +20,9 @@ class SettingsState extends Equatable {
   final bool speakProcessingMessages;
   final String wakeWord;
 
+  // Bot voice mode
+  final bool botVoiceMode;
+
   // UI
   final bool saved;
 
@@ -36,6 +39,7 @@ class SettingsState extends Equatable {
     this.autoListenAfterResponse = false,
     this.speakProcessingMessages = true,
     this.wakeWord = 'jarvis',
+    this.botVoiceMode = false,
     this.saved = false,
   });
 
@@ -52,6 +56,7 @@ class SettingsState extends Equatable {
     bool? autoListenAfterResponse,
     bool? speakProcessingMessages,
     String? wakeWord,
+    bool? botVoiceMode,
     bool? saved,
   }) =>
       SettingsState(
@@ -70,6 +75,7 @@ class SettingsState extends Equatable {
         speakProcessingMessages:
             speakProcessingMessages ?? this.speakProcessingMessages,
         wakeWord: wakeWord ?? this.wakeWord,
+        botVoiceMode: botVoiceMode ?? this.botVoiceMode,
         saved: saved ?? this.saved,
       );
 
@@ -87,6 +93,7 @@ class SettingsState extends Equatable {
         autoListenAfterResponse,
         speakProcessingMessages,
         wakeWord,
+        botVoiceMode,
         saved,
       ];
 }
